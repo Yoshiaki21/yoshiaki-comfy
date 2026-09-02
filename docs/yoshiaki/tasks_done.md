@@ -24,6 +24,20 @@
 
 ---
 
+## タスク: yoshiaki-wildcard.ini のひな型ファイル追加
+
+- **完了日**: 2026-09-02
+- **動作確認**: ✅済み（`configparser`で`.example`ファイルが問題なくパースできることを確認）
+- **新規ファイル**:
+  - `yoshiaki-wildcard.ini.example` : `yoshiaki-wildcard.ini`のひな型。`custom_wildcards`キーの書き方をコメントで説明
+- **修正ファイル**: なし
+- **変更内容**:
+  - `yoshiaki-wildcard.ini`は`.gitignore`対象かつ未作成時はデフォルト値で動くため、設定ファイルの書き方が分かるようにexampleファイルを追加
+  - 使い方: `yoshiaki-wildcard.ini.example`を`yoshiaki-wildcard.ini`にコピーして`custom_wildcards`にパスを記入
+- **備考**: なし
+
+---
+
 ## タスク: YoshiakiWildcardProcessor / YoshiakiWildcardEncode ノードパックの新規作成
 
 - **完了日**: 2026-09-02

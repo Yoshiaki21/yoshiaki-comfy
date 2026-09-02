@@ -1,0 +1,22 @@
+; yoshiaki-comfy wildcard settings
+;
+; Copy this file to "yoshiaki-wildcard.ini" (same folder, remove the
+; ".example" suffix) and edit it. That file is git-ignored, so it's safe
+; to put a machine-specific absolute path in it.
+;
+; If "yoshiaki-wildcard.ini" doesn't exist, or "custom_wildcards" is left
+; empty / points to a folder that doesn't exist, the pack's own
+; "wildcards/" folder is used instead.
+
+[default]
+
+; Optional: absolute path to a folder containing your .txt / .yaml
+; wildcard files. When set to an existing directory, ONLY this folder is
+; searched (the pack's own "wildcards/" folder is ignored while this is
+; set) -- e.g. to reuse an existing wildcard collection from another
+; ComfyUI custom node pack.
+;
+; Windows paths can be written with backslashes as-is.
+;
+; custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
+custom_wildcards =
