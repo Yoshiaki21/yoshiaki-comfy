@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# yoshiaki-comfy: local wildcard-source override (machine-specific path)
+/yoshiaki-wildcard.ini

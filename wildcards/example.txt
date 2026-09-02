@@ -1,0 +1,6 @@
+# Example wildcard file for yoshiaki-comfy.
+# Lines starting with '#' are ignored. One option per line.
+# Used in a prompt as: __example__
+red flower
+blue flower
+yellow flower
