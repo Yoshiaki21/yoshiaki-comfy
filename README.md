@@ -150,9 +150,9 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 
 内容はキャッシュせず、毎回ディスクから読み直します（ファイルを編集したら即座に反映されます）。
 
-### 「Select to add Wildcard」のフォルダ絞り込み
+### 「Select to add Wildcard」/「Select to add LoRA」のフォルダ絞り込み
 
-ワイルドカードファイルが増えて選択肢が探しにくくなってきた場合のために、「Select to add Wildcard」の直上に「Wildcard Folder」というコンボが用意されています。ここでサブフォルダを選ぶと、「Select to add Wildcard」にはそのフォルダ**直下**にあるワイルドカードだけが表示されます（サブフォルダの中身は含みません。さらに深い階層を見たい場合はその階層自体を「Wildcard Folder」から選んでください）。先頭の「(no folder)」は、サブフォルダに入れていないワイルドカードを絞り込むための選択肢です。選んだフォルダはノードごとにブラウザの`localStorage`に記憶され、ワークフローファイル自体には保存されません。
+ワイルドカードファイルやLoRAファイルが増えて選択肢が探しにくくなってきた場合のために、「Select to add Wildcard」の直上に「Wildcard Folder」、（`YoshiakiWildcardEncode`では）「Select to add LoRA」の直上に「LoRA Folder」というコンボが用意されています。ここでサブフォルダを選ぶと、それぞれの選択肢にはそのフォルダ**直下**にあるものだけが表示されます（サブフォルダの中身は含みません。さらに深い階層を見たい場合はその階層自体をフォルダ一覧から選んでください）。先頭の「(no folder)」は、サブフォルダに入れていないファイルを絞り込むための選択肢です。選んだフォルダはノード・種類ごとにブラウザの`localStorage`に記憶され、ワークフローファイル自体には保存されません。
 
 ---
 

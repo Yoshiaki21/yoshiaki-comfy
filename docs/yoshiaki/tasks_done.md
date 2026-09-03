@@ -24,6 +24,23 @@
 
 ---
 
+## タスク: LoRA選択にもフォルダ絞り込みを追加
+
+- **完了日**: 2026-09-04
+- **動作確認**: ⬜未確認（コード修正のみ。ユーザー側で再確認予定）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `js/yoshiaki-wildcard.js` : `YoshiakiWildcardEncode`の「Select to add LoRA」直上に「LoRA Folder」コンボを追加。ワイルドカード側の実装（`get_wildcard_folders`等）を汎用化（`folders_from_items`/`items_in_folder`/`default_folder`/`initial_folder`/`move_widget_above`）し、ワイルドカードとLoRAの両方で共通利用する形にリファクタリング
+- **変更内容**:
+  - LoRA一覧はワイルドカードと違い専用のサーバーAPIを新設せず、ノード生成時に既にPython側（`folder_paths.get_filename_list("loras")`）から渡されている`lora_widget.options.values`をJS側でそのままスナップショットして使用（サーバー変更なし）
+  - フォルダ絞り込みの仕様（全階層フラット列挙・先頭に(no folder)・直下のみ絞り込み・中身のあるフォルダを自動初期選択・localStorageに`yoshiaki-lora-folder:`プレフィックスで記憶)はワイルドカードと同一
+  - LoRAファイル名のパス区切り文字はWindows環境で`\`になる可能性があるため、`/`に正規化してから解析するようにした
+- **備考**:
+  - `Select to add LoRA`の直上に新規ウィジェットを挿入した結果、`YoshiakiWildcardEncode`内でそれより後ろにあるウィジェット（Wildcard Folder・Select to add Wildcard・seed）の配列位置がさらに1つずつ後ろにずれる。前回（Wildcard Folder追加時）に続き**2回目**の位置ずれとなるため、既存の保存済み`YoshiakiWildcardEncode`ワークフローを開いた際は`seed`の値を再度確認・入力し直す必要がある場合がある（ユーザー了承済み）
+  - `YoshiakiWildcardProcessor`側はLoRA機能自体を持たないため影響なし
+
+---
+
 ## タスク: 候補が多いときの検索一覧UIでワイルドカード/LoRA選択がテキストに挿入されない不具合を修正
 
 - **完了日**: 2026-09-04
