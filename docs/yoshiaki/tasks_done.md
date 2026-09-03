@@ -24,6 +24,20 @@
 
 ---
 
+## タスク: YoshiakiLLMCaptionGenerator の CATEGORY を yoshiaki-comfy 配下に統一
+
+- **完了日**: 2026-09-03
+- **動作確認**: ⬜未確認（文字列変更のみ。ComfyUI実機でのカテゴリ表示確認は未実施）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_llm/llm_caption_node.py` : `CATEGORY`を`"LLM"`→`"yoshiaki-comfy/LLM"`に変更
+  - `CLAUDE.md` : 上記変更に合わせて記載を修正
+- **変更内容**:
+  - `YoshiakiWildcardProcessor`/`YoshiakiWildcardEncode`の`CATEGORY`（`yoshiaki-comfy/Prompt`）と揃え、ノード一覧で`yoshiaki-comfy`配下にまとまって表示されるようにした
+- **備考**: なし
+
+---
+
 ## タスク: ComfyUI-LLM-Tagger を yoshiaki-comfy へ統合（YoshiakiLLMCaptionGenerator）
 
 - **完了日**: 2026-09-03

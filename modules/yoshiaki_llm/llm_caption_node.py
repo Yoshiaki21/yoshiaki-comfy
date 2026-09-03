@@ -1013,7 +1013,7 @@ class YoshiakiLLMCaptionGenerator:
     FUNCTION = "generate"
 
     # 4. ノード一覧で表示されるカテゴリ（サイドバーの分類）
-    CATEGORY = "LLM"
+    CATEGORY = "yoshiaki-comfy/LLM"
 
     # 5. 8章 キャッシュ制御。引数は INPUT_TYPES と同じ並び（optional の image_names のみ既定値あり）。
     #    INPUT_IS_LIST = True のため IS_CHANGED にも全入力がリストで渡る（execution.py の
