@@ -24,6 +24,25 @@
 
 ---
 
+## タスク: ワイルドカード選択コンボにフォルダ絞り込みを追加
+
+- **完了日**: 2026-09-03
+- **動作確認**: ⬜未確認（コード修正のみ。ComfyUI実機でのフォルダ選択・絞り込み・localStorage永続化の確認はユーザー側で実施予定）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `js/yoshiaki-wildcard.js` : 「Select to add Wildcard」直上に「Wildcard Folder」コンボを追加。フォルダ一覧は`wildcards_list`から全階層のフォルダパスをJS側でフラット抽出（サーバー側の変更は不要）。既存の「Select to add Wildcard」「Select to add LoRA」の参照も配列インデックスから`widget.name`によるlookupに変更
+- **変更内容**:
+  - ワイルドカードファイルが増えて「Select to add Wildcard」の選択肢が探しにくくなった問題に対応
+  - 「Wildcard Folder」で選んだフォルダの**直下**にあるワイルドカードのみが「Select to add Wildcard」の候補になる（サブフォルダの中身は含まない。深い階層を見たい場合はその階層自体をフォルダ一覧から選ぶ）
+  - フォルダ一覧の先頭は常に「(no folder)」（サブフォルダに属さないワイルドカードを絞り込む選択肢）で固定。「(すべて表示)」のような選択肢は無し（絞り込みが目的のため）
+  - 選択したフォルダは`localStorage`にノードID単位で保存し、ページ再読み込み後も復元（ワークフローJSON自体には保存しない）
+  - `YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` の両方に適用
+- **備考**:
+  - Python側（`INPUT_TYPES`、サーバールート）は一切変更していない。新しいウィジェットは`nodeCreated`時にJS側で動的追加し、ワークフロー保存データには意味を持たせていない（folderの実体はlocalStorage）
+  - **`YoshiakiWildcardEncode`のみ既存の保存済みワークフローに影響の可能性あり**: 新ウィジェットを「Select to add LoRA」と「Select to add Wildcard」の間に挿入する都合上、それより後ろにある`seed`ウィジェットの配列位置が1つずれる。ComfyUIは`widgets_values`をウィジェット定義順（配列インデックス）で復元するため、本更新後に古い`YoshiakiWildcardEncode`ワークフローを開くと`seed`の値が意図しないものになっている可能性がある（実行が壊れるわけではなく、`seed`欄を目視確認・再入力すれば解消）。`YoshiakiWildcardProcessor`は`seed`が新ウィジェットより前に位置するため影響なし
+
+---
+
 ## タスク: YoshiakiLLMCaptionGenerator の CATEGORY を yoshiaki-comfy 配下に統一
 
 - **完了日**: 2026-09-03
