@@ -8,8 +8,9 @@
 |---|---|
 | **Yoshiaki Wildcard Processor** (`YoshiakiWildcardProcessor`) | ワイルドカード構文のテキストを解決して文字列を出力する |
 | **Yoshiaki Wildcard Encode** (`YoshiakiWildcardEncode`) | ワイルドカード構文とLoRA構文を解決し、LoRA適用済みの `MODEL`/`CLIP` とCLIP条件付け(`CONDITIONING`)を出力する |
+| **Yoshiaki-LLMCaptionGenerator** (`YoshiakiLLMCaptionGenerator`) | WD14 Tagger等が出力したタグを画像と一緒にローカルLLM（Lemonade Server）へ渡し、タグの補正やキャプション文を生成する |
 
-[ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack) の `ImpactWildcardProcessor` / `ImpactWildcardEncode` を、この2ノードだけ使う用途に切り出して単独パック化したものです（詳細は [docs/yoshiaki/tasks_done.md](docs/yoshiaki/tasks_done.md) 参照）。ノード名・Pythonパッケージ名・サーバールート名を独自のものに変更しているため、元のComfyUI-Impact-Packと同一環境に共存インストールしても衝突しません。
+`YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack) の `ImpactWildcardProcessor` / `ImpactWildcardEncode` を、この2ノードだけ使う用途に切り出して単独パック化したものです。`YoshiakiLLMCaptionGenerator` はもともと別リポジトリ [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) として作っていたノードをこちらに統合したものです（当時の開発履歴は [docs/yoshiaki/tasks_done.LLM.md](docs/yoshiaki/tasks_done.LLM.md)、詳細仕様は [docs/yoshiaki/LLM_Caption_Node_指示書.md](docs/yoshiaki/LLM_Caption_Node_指示書.md) 参照）。いずれもノード名・Pythonパッケージ名を独自のものに変更しているため、元のリポジトリと同一環境に共存インストールしても衝突しません。
 
 ---
 
@@ -151,6 +152,42 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 
 ---
 
+## Yoshiaki-LLMCaptionGenerator
+
+画像とWD14 Taggerなどのタグ文字列を、手元のLAN上で動く **Lemonade Server**（AMD製のローカルLLM推論サーバー、OpenAI互換API）に送り、タグの補正やキャプション文（自然言語の説明文）をLLMに生成させるノードです。
+
+```
+[LoadImage] → [WD14Tagger] → tags(STRING) ┐
+       └─────────────────────────────────→ [Yoshiaki-LLMCaptionGenerator] → caption_text(STRING)
+```
+
+**入力（抜粋）**
+
+| 名前 | 型 | 説明 |
+|---|---|---|
+| `image` | IMAGE | キャプション対象の画像（バッチ/リストどちらも可） |
+| `tags` | STRING | WD14 Tagger等から受け取るタグ文字列（このノード自体はタグ生成ノードに依存しない。単なるテキスト入力） |
+| `trigger_word` | STRING | 学習用データセットのトリガーワード（任意。指定するとタグ列の先頭に必ず挿入される） |
+| `system_prompt_file` | COMBO | [`system_prompts/`](modules/yoshiaki_llm/system_prompts) フォルダ内の `.txt` から選択 |
+| `lemonade_host` / `lemonade_port` / `lemonade_api_key` | STRING/INT/STRING | Lemonade ServerのAPI接続先 |
+| `model` | COMBO | 接続先から取得したモデル一覧 |
+| `temperature` / `max_tokens` / `timeout_sec` / `max_retries` 等 | — | 生成パラメータ・リトライ回数の設定 |
+
+**出力**: `caption_text` (STRING) — `image`と同じ枚数・同じ順序のキャプション文字列リスト
+
+### 動作の仕組み
+
+- `system_prompt_file` で選んだ `.txt` の1行目（`<!-- output_mode: tags_only|caption_only|both -->`）から出力モードを自動判定します。ウィジェットではなくファイル側の指定です
+- 接続失敗・タイムアウト・応答フォーマット不正などを分類し、パラメータを調整しながら`max_retries`回まで自動リトライします
+- 実行結果は `modules/yoshiaki_llm/logs/`（`.gitignore`対象）にログとして残ります。`log_prompt`をONにすると送信内容と生応答も記録されます
+
+### 前提条件
+
+- LAN上（またはlocalhost）で **Lemonade Server** が起動している必要があります。既定の接続先は開発時の環境に合わせたLAN内IPになっているため、`lemonade_host` / `lemonade_port` ウィジェットで自分の環境に合わせて変更してください
+- ComfyUI-Impact-Pack等のような他のカスタムノードパックへのコード依存はありません（`tags`入力にWD14 Taggerを繋ぐのはワークフロー上の運用であり、コード上の依存ではありません）
+
+---
+
 ## インストール
 
 このリポジトリをComfyUIの `custom_nodes` フォルダ内にクローン（またはシンボリックリンク）し、以下を実行してください。
@@ -159,10 +196,10 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 pip install -r requirements.txt
 ```
 
-依存パッケージは `pyyaml` と `numpy` のみです。
+依存パッケージは `pyyaml`, `numpy`, `Pillow` です（いずれもComfyUI本体が通常インストール済みのパッケージです）。`YoshiakiLLMCaptionGenerator` はLemonade Serverとの通信に標準ライブラリの`urllib`/`http.client`のみを使っており、追加のSDK等は不要です。
 
 ---
 
 ## ライセンス
 
-[ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack)（GPLv3）からのコードを含みます。個人利用のみで配布予定はありません。
+`YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack)（GPLv3）からのコードを含みます。`YoshiakiLLMCaptionGenerator` は自作の [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) からの移植です。個人利用のみで配布予定はありません。

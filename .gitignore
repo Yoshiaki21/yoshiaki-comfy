@@ -219,3 +219,6 @@ __marimo__/
 
 # yoshiaki-comfy: local wildcard-source override (machine-specific path)
 /yoshiaki-wildcard.ini
+
+# yoshiaki-comfy: YoshiakiLLMCaptionGenerator run logs (generated at runtime)
+modules/yoshiaki_llm/logs/
