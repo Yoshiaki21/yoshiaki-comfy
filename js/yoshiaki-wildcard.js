@@ -54,6 +54,16 @@ function get_wildcards_in_folder(folder) {
 	});
 }
 
+// The first folder (in get_wildcard_folders() order) that actually has at
+// least one wildcard directly under it. Falls back to NO_FOLDER_LABEL if
+// nothing has any entries at all (e.g. a brand-new empty wildcards/ dir).
+function get_default_folder() {
+	for (const folder of get_wildcard_folders()) {
+		if (get_wildcards_in_folder(folder).length > 0) return folder;
+	}
+	return NO_FOLDER_LABEL;
+}
+
 function load_stored_folder(node) {
 	try {
 		return localStorage.getItem(FOLDER_STORAGE_PREFIX + node.id);
@@ -115,7 +125,8 @@ app.registerExtension({
 
 		// --- folder filter, inserted directly above the wildcard combo ---
 		const stored_folder = load_stored_folder(node);
-		node._wildcard_folder = get_wildcard_folders().includes(stored_folder) ? stored_folder : NO_FOLDER_LABEL;
+		const stored_folder_has_entries = stored_folder && get_wildcards_in_folder(stored_folder).length > 0;
+		node._wildcard_folder = stored_folder_has_entries ? stored_folder : get_default_folder();
 
 		const folder_widget = node.addWidget(
 			'combo',
