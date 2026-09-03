@@ -149,19 +149,22 @@ app.registerExtension({
 		node.setSize(node.computeSize());
 
 		// --- wildcard combo: insert selected value into wildcard_text, filtered by folder ---
+		// NOTE: the actual insertion happens inside the `value` setter below, not in
+		// `.callback`. When the option list is long, ComfyUI renders a searchable
+		// "Filter list" overlay (see docs/yoshiaki/tasks_done.md) that only ever sets
+		// `widget.value = picked` on selection -- it does not also invoke
+		// `widget.callback`. The setter is the one path guaranteed to fire regardless
+		// of which combo UI ComfyUI decides to render, so all the logic lives there.
 		node._wildcard_value = WILDCARD_LABEL;
-
-		wildcard_widget.callback = (value) => {
-			if (value === WILDCARD_LABEL) return;
-			if (wildcard_text_widget.value !== '') {
-				wildcard_text_widget.value += ', ';
-			}
-			wildcard_text_widget.value += value;
-		};
 
 		Object.defineProperty(wildcard_widget, "value", {
 			set: (value) => {
-				if (value !== WILDCARD_LABEL) node._wildcard_value = value;
+				if (value === WILDCARD_LABEL) return;
+				node._wildcard_value = value;
+				if (wildcard_text_widget.value !== '') {
+					wildcard_text_widget.value += ', ';
+				}
+				wildcard_text_widget.value += value;
 			},
 			get: () => WILDCARD_LABEL
 		});
@@ -177,18 +180,15 @@ app.registerExtension({
 		if (has_lora) {
 			node._lora_value = LORA_LABEL;
 
-			lora_widget.callback = (value) => {
-				if (value === LORA_LABEL) return;
-				let lora_name = value;
-				if (lora_name.endsWith('.safetensors')) {
-					lora_name = lora_name.slice(0, -12);
-				}
-				wildcard_text_widget.value += `<lora:${lora_name}>`;
-			};
-
 			Object.defineProperty(lora_widget, "value", {
 				set: (value) => {
-					if (value !== LORA_LABEL) node._lora_value = value;
+					if (value === LORA_LABEL) return;
+					node._lora_value = value;
+					let lora_name = value;
+					if (lora_name.endsWith('.safetensors')) {
+						lora_name = lora_name.slice(0, -12);
+					}
+					wildcard_text_widget.value += `<lora:${lora_name}>`;
 				},
 				get: () => LORA_LABEL
 			});
