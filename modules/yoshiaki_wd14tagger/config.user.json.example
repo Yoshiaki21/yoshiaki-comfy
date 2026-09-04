@@ -1,0 +1,6 @@
+{
+	"_comment": "Copy to config.user.json (same folder) to override individual settings from config.json locally. config.user.json is git-ignored.",
+	"settings": {
+		"threshold": 0.35
+	}
+}

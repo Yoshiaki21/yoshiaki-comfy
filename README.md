@@ -11,6 +11,7 @@
 | **Yoshiaki-LLMCaptionGenerator** (`YoshiakiLLMCaptionGenerator`) | WD14 Tagger等が出力したタグを画像と一緒にローカルLLM（Lemonade Server）へ渡し、タグの補正やキャプション文を生成する |
 | **Yoshiaki LoRA Caption Load** (`YoshiakiLoRACaptionLoad`) | 指定フォルダ内のPNG画像とファイル名一覧を読み込む（LoRA学習用データセット準備の入力側） |
 | **Yoshiaki LoRA Caption Save** (`YoshiakiLoRACaptionSave`) | 画像ファイル名に対応するキャプション(`.txt`)を、共通プレフィックス付きで保存する |
+| **Yoshiaki WD14 Tagger** (`YoshiakiWD14Tagger`) | 画像をWD14系ONNXモデルでタグ付けする（booruタグ形式）。タグの優先順位並べ替え・ワイルドカード対応の除外タグをサポート |
 
 `YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack) の `ImpactWildcardProcessor` / `ImpactWildcardEncode` を、この2ノードだけ使う用途に切り出して単独パック化したものです。`YoshiakiLLMCaptionGenerator` はもともと別リポジトリ [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) として作っていたノードをこちらに統合したものです（当時の開発履歴は [docs/yoshiaki/tasks_done.LLM.md](docs/yoshiaki/tasks_done.LLM.md)、詳細仕様は [docs/yoshiaki/LLM_Caption_Node_指示書.md](docs/yoshiaki/LLM_Caption_Node_指示書.md) 参照）。`YoshiakiLoRACaptionLoad` / `YoshiakiLoRACaptionSave` は自分のフォーク [Image-Captioning-in-ComfyUI](https://github.com/Yoshiaki21/Image-Captioning-in-ComfyUI)（本家: [LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI)）から統合したものです。いずれもノード名・Pythonパッケージ名を独自のものに変更しているため、元のリポジトリと同一環境に共存インストールしても衝突しません。
 
@@ -222,6 +223,25 @@ LoRA学習用データセットの準備（画像 + キャプションのペア�
 
 ---
 
+## Yoshiaki WD14 Tagger
+
+画像をWD14系のONNXタグ分類モデルでbooruタグ形式にタグ付けするノードです。`YoshiakiLoRACaptionSave`や`YoshiakiLLMCaptionGenerator`の`tags`入力に繋いで使う想定です。
+
+**入力（抜粋）**: `image` (IMAGE) / `model`（COMBO、選択したモデルが未取得ならHugging Faceから自動ダウンロード） / `threshold` / `character_threshold` / `replace_underscore` / `trailing_comma` / `exclude_tags`（`fnmatch`のワイルドカード対応。例: `"* hair"`で`"brown hair"`等をまとめて除外）
+
+**出力**: `STRING`（画像枚数分のリスト）
+
+**独自機能**:
+- **タグの優先順位並べ替え**: [modules/yoshiaki_wd14tagger/priority.json](modules/yoshiaki_wd14tagger/priority.json) で定義したカテゴリ順（髪→目→表情→体→服→アクセサリ→ポーズ→背景→品質メタ、の順）にgeneralタグを並べ替える。キャラクター名タグは常に先頭固定
+- **モデルの保存先**: `modules/yoshiaki_wd14tagger/models/`（このノード専用。`.gitignore`対象）。個別設定は[`config.user.json.example`](modules/yoshiaki_wd14tagger/config.user.json.example)をコピーして`config.user.json`を作ると上書きできる（`.gitignore`対象）
+- **推論はCPU限定**（`config.json`の`ortProviders`が`CPUExecutionProvider`のみ）
+
+**前提条件・注意点**:
+- 元の [ComfyUI-WD14-Tagger](https://github.com/pythongosssss/ComfyUI-WD14-Tagger) にあった「ComfyUI上のどの画像でも右クリックしてその場でタグ付けする」機能（キャンバス全体に影響するコンテキストメニュー拡張）は、このリポジトリでは統合していません。ワークフロー上に`Yoshiaki WD14 Tagger`ノードを置いて使う通常の使い方には影響ありません
+- 選択したモデルが未ダウンロードの場合、実行時にHugging Faceから自動でダウンロードします（数百MB程度になることがあります）
+
+---
+
 ## インストール
 
 このリポジトリをComfyUIの `custom_nodes` フォルダ内にクローン（またはシンボリックリンク）し、以下を実行してください。
@@ -230,10 +250,10 @@ LoRA学習用データセットの準備（画像 + キャプションのペア�
 pip install -r requirements.txt
 ```
 
-依存パッケージは `pyyaml`, `numpy`, `Pillow` です（いずれもComfyUI本体が通常インストール済みのパッケージです）。`YoshiakiLLMCaptionGenerator` はLemonade Serverとの通信に標準ライブラリの`urllib`/`http.client`のみを使っており、追加のSDK等は不要です。
+依存パッケージは `pyyaml`, `numpy`, `Pillow`, `onnxruntime`, `tqdm` です。`pyyaml`/`numpy`/`Pillow`はComfyUI本体が通常インストール済みですが、`onnxruntime`（`Yoshiaki WD14 Tagger`が使用）と`tqdm`（モデルダウンロードの進捗表示用）は追加インストールが必要な場合があります。`YoshiakiLLMCaptionGenerator` はLemonade Serverとの通信に標準ライブラリの`urllib`/`http.client`のみを使っており、追加のSDK等は不要です。
 
 ---
 
 ## ライセンス
 
-`YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack)（GPLv3）からのコードを含みます。`YoshiakiLLMCaptionGenerator` は自作の [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) からの移植です。`YoshiakiLoRACaptionLoad` / `YoshiakiLoRACaptionSave` は [LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI) を自分がフォークしたものからの移植です（本家・フォークともにOSSライセンスの明記なし）。個人利用のみで配布予定はありません。
+`YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack)（GPLv3）からのコードを含みます。`YoshiakiLLMCaptionGenerator` は自作の [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) からの移植です。`YoshiakiLoRACaptionLoad` / `YoshiakiLoRACaptionSave` は [LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI) を自分がフォークしたものからの移植です（本家・フォークともにOSSライセンスの明記なし）。`YoshiakiWD14Tagger` は [pythongosssss/ComfyUI-WD14-Tagger](https://github.com/pythongosssss/ComfyUI-WD14-Tagger)（MITライセンス）を自分がフォークしたものからの移植です。個人利用のみで配布予定はありません。

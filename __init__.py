@@ -20,6 +20,7 @@ try:
     import nodes  # noqa: F401
     import yaml  # noqa: F401
     from PIL import Image  # noqa: F401
+    import onnxruntime  # noqa: F401
 except Exception as e:
     logging.error("[yoshiaki-comfy] Failed to import due to missing dependencies (see requirements.txt).")
     raise e
@@ -38,16 +39,22 @@ from yoshiaki_loracaption.lora_caption import (  # noqa: E402
     NODE_CLASS_MAPPINGS as _LORACAPTION_NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as _LORACAPTION_NODE_DISPLAY_NAME_MAPPINGS,
 )
+from yoshiaki_wd14tagger.wd14tagger import (  # noqa: E402
+    NODE_CLASS_MAPPINGS as _WD14TAGGER_NODE_CLASS_MAPPINGS,
+    NODE_DISPLAY_NAME_MAPPINGS as _WD14TAGGER_NODE_DISPLAY_NAME_MAPPINGS,
+)
 
 NODE_CLASS_MAPPINGS = {
     **_WILDCARD_NODE_CLASS_MAPPINGS,
     **_LLM_NODE_CLASS_MAPPINGS,
     **_LORACAPTION_NODE_CLASS_MAPPINGS,
+    **_WD14TAGGER_NODE_CLASS_MAPPINGS,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     **_WILDCARD_NODE_DISPLAY_NAME_MAPPINGS,
     **_LLM_NODE_DISPLAY_NAME_MAPPINGS,
     **_LORACAPTION_NODE_DISPLAY_NAME_MAPPINGS,
+    **_WD14TAGGER_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 nodes.EXTENSION_WEB_DIRS["yoshiaki-comfy"] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'js')

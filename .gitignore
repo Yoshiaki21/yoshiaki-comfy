@@ -222,3 +222,7 @@ __marimo__/
 
 # yoshiaki-comfy: YoshiakiLLMCaptionGenerator run logs (generated at runtime)
 modules/yoshiaki_llm/logs/
+
+# yoshiaki-comfy: WD14 Tagger downloaded ONNX models + local settings override
+modules/yoshiaki_wd14tagger/models/
+modules/yoshiaki_wd14tagger/config.user.json

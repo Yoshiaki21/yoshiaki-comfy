@@ -24,6 +24,36 @@
 
 ---
 
+## タスク: ComfyUI-WD14-Tagger(フォーク)を yoshiaki-comfy へ統合(YoshiakiWD14Tagger)
+
+- **完了日**: 2026-09-04
+- **動作確認**: ✅済み（ローカル環境に`onnxruntime`/`aiohttp`が無いため、両モジュールと`server.PromptServer`/`comfy.utils`/`folder_paths`をスタブ化した上で、`InferenceSession`を偽の分類結果を返すフェイクに差し替えてエンドツーエンドで検証。①`config.json`から既知モデル一覧11件が読み込めること、②`ortProviders`がCPU限定になっていること、③`.onnx`+`.csv`が揃ったモデルが正しく「インストール済み」と判定されること、④`tag()`が実際に画像リサイズ→CSV解析→閾値フィルタ→`exclude_tags`のワイルドカード除外（`fnmatch`）→character/generalタグ結合→`replace_underscore`まで一連の流れを正しく処理することを確認。実機でのComfyUI起動・モデル自動ダウンロード・実際のONNX推論の確認はユーザー側で実施予定）
+- **新規ファイル**:
+  - `modules/yoshiaki_wd14tagger/wd14tagger.py` : [Yoshiaki21/ComfyUI-WD14-Tagger](https://github.com/Yoshiaki21/ComfyUI-WD14-Tagger)（本家: [pythongosssss/ComfyUI-WD14-Tagger](https://github.com/pythongosssss/ComfyUI-WD14-Tagger)、MIT）の`wd14tagger.py`を移植。クラス名`WD14Tagger`→`YoshiakiWD14Tagger`、`class_type`を`WD14Tagger|pysssss`→`YoshiakiWD14Tagger`に変更、`CATEGORY`を`image`→`yoshiaki-comfy/LLM`に変更。「右クリックで任意の画像をタグ付け」機能とその`/pysssss/wd14tagger/tag`ルートは未使用のため統合せず削除（詳細は下記備考）
+  - `modules/yoshiaki_wd14tagger/helpers.py` : 本家`pysssss.py`のうち実際に使われている機能のみ抜き出して再実装（設定読み込み、モデルダウンロード、非同期呼び出しのラップ、ステータス通知）。レガシーJSインストール機構（`web/extensions/pysssss`へのシンボリックリンク作成等）は、yoshiaki-comfyが既にモダンな`EXTENSION_WEB_DIRS`方式を使っているため移植せず
+  - `modules/yoshiaki_wd14tagger/tag_priority.py` : フォーク元からそのまま移植（タグの優先順位並べ替え機能）
+  - `modules/yoshiaki_wd14tagger/priority.json` : フォーク元からそのまま移植（優先順位の定義）
+  - `modules/yoshiaki_wd14tagger/config.json` : 本家`pysssss.json`から移植。`ortProviders`はフォークの設定（CPU限定）を維持。pysssss固有の`name`/`logging`キーは不要なため削除
+  - `modules/yoshiaki_wd14tagger/config.user.json.example` : ローカル設定上書き用のひな型（新規、yoshiaki-wildcard.ini.exampleと同じ考え方）
+  - `js/yoshiaki-wd14tagger.js` : 本家`web/js/wd14tagger.js`のうち、モデルダウンロード中の進捗バッジ表示と、実行後の読み取り専用タグ表示のみを移植。「どの画像でも右クリックでタグ付け」というキャンバス全体に影響する`getExtraMenuOptions`パッチは統合せず削除。進捗バッジハンドラも全ノード型ではなく`YoshiakiWD14Tagger`のみに限定するよう整理
+- **修正ファイル**:
+  - `__init__.py` : `yoshiaki_wd14tagger.wd14tagger`の`NODE_CLASS_MAPPINGS`/`NODE_DISPLAY_NAME_MAPPINGS`を他3パックとマージ。依存チェックに`onnxruntime`を追加
+  - `requirements.txt` : `onnxruntime`、`tqdm`を追加
+  - `.gitignore` : `modules/yoshiaki_wd14tagger/models/`（ダウンロードしたONNXモデル）と`modules/yoshiaki_wd14tagger/config.user.json`を追加
+  - `README.md` : ノード一覧に追加、`Yoshiaki WD14 Tagger`セクション（入出力・独自機能・注意点）を追加、インストール節の依存パッケージ表記を更新、ライセンス節に統合元を追記
+  - `CLAUDE.md` : 「含まれるカスタムノード」セクションに追記
+- **変更内容（統合前にユーザーと合意した設計判断）**:
+  - モデル保存先は、ComfyUI共通の`models/`フォルダではなく拡張機能フォルダ内（`modules/yoshiaki_wd14tagger/models/`）を選択。このノードでしか使わないため
+  - 「どの画像でも右クリックでタグ付け」機能（キャンバス上の全ノードの`getExtraMenuOptions`に影響する本家の機能）は未使用のため統合せず削除。ノードとしての通常利用（ワークフロー上に置いて画像→タグを出力）には影響しないことを確認した上で実施
+  - `CATEGORY`は`yoshiaki-comfy/LLM`（WD14 Taggerは厳密には画像タグ分類モデルでありLLMではない旨を伝えた上で、ユーザー希望によりこのカテゴリに配置）
+- **備考**:
+  - フォーク元の3つの独自機能（`exclude_tags`のワイルドカード対応、タグ優先順位並べ替え、CPU限定推論）はすべてそのまま維持
+  - MITライセンス（今まで統合した中で唯一ライセンスが明記されているコード）
+  - モデル自動ダウンロード（HuggingFaceから数百MB規模）は本家由来の標準動作としてそのまま維持
+  - 配布予定なし、個人利用限定
+
+---
+
 ## タスク: 画像枚数表示の文言を "N image(s)" から "N images" に変更
 
 - **完了日**: 2026-09-04

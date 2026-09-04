@@ -68,3 +68,21 @@
 
 ---
 
+### YoshiakiWD14Tagger
+
+- **実装日**: 2026-09-04（自分のフォーク[ComfyUI-WD14-Tagger](https://github.com/Yoshiaki21/ComfyUI-WD14-Tagger)からyoshiaki-comfyへ統合。本家は[pythongosssss/ComfyUI-WD14-Tagger](https://github.com/pythongosssss/ComfyUI-WD14-Tagger)、MITライセンス）
+- **カスタムノードの機能の概要**:
+  - 画像をWD14系ONNXモデルでbooruタグ形式にタグ付け
+  - フォーク独自機能: タグの優先順位並べ替え（`priority.json`定義のカテゴリ順）、`exclude_tags`のワイルドカード対応（`fnmatch`）、推論をCPU限定（`ortProviders`）
+  - 選択したモデルが未取得の場合、実行時にHugging Faceから自動ダウンロード（`modules/yoshiaki_wd14tagger/models/`に保存、`.gitignore`対象）
+- **備考**:
+  - `class_type`/表示名は`YoshiakiWD14Tagger`/`Yoshiaki WD14 Tagger`、`CATEGORY`は`yoshiaki-comfy/LLM`（画像タグ分類モデルでありLLMではないが、ユーザー希望によりLLMカテゴリに配置）
+  - 本家の`pysssss.py`が提供していた「ComfyUI上のどの画像でも右クリックしてその場でタグ付けする」というキャンバス全体に影響する機能と、それが使う`/pysssss/wd14tagger/tag`サーバールートは**未使用のため統合せず削除**（ユーザーは`Yoshiaki WD14 Tagger`ノードをワークフロー上に置いて使う通常の方法のみ利用。この削除はノードとしての通常動作には無関係）
+  - 本家の`pysssss.py`が持っていたレガシーJSインストール機構（`web/extensions/pysssss`へのシンボリックリンク作成）も、yoshiaki-comfyが既にモダンな`EXTENSION_WEB_DIRS`方式を使っているため不要と判断し統合せず（`modules/yoshiaki_wd14tagger/helpers.py`に必要な部分のみ再実装）
+  - 新規pip依存: `onnxruntime`, `tqdm`（`requirements.txt`に追加）
+  - モデル保存先はComfyUI共通の`models/`フォルダではなく、拡張機能フォルダ内（`modules/yoshiaki_wd14tagger/models/`）を選択（このノードでしか使わないため。ユーザー確認済み）
+  - 設定は`config.json`（既定値・既知モデル一覧）＋任意の`config.user.json`（ローカル上書き、`.gitignore`対象、`config.user.json.example`参照）
+  - 配布予定なし、個人利用限定
+
+---
+
