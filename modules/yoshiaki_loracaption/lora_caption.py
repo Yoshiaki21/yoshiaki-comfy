@@ -9,6 +9,7 @@ port.
 
 import glob
 import os
+import shutil
 from PIL import Image
 from PIL import ImageOps
 import numpy as np
@@ -27,7 +28,13 @@ cstr = _cstr_fallback()
 
 class YoshiakiLoRACaptionSave:
     def __init__(self):
-        pass
+        # Advances once per call when `overwrite=True` (see save_text_file).
+        # ComfyUI instantiates the node fresh per queued prompt, so this
+        # resets to 0 on every new run and only needs to stay correct across
+        # the repeated per-image calls ComfyUI makes within a single run
+        # (map_node_over_list, when `text` is fed from a list-output node
+        # such as WD14Tagger).
+        self._overwrite_index = 0
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -39,6 +46,8 @@ class YoshiakiLoRACaptionSave:
             },
             "optional": {
                 "prefix": ("STRING", {"default": " "}),
+                "output_path": ("STRING", {"default": "", "tooltip": "Leave empty to save into 'path' (default, no image copy). If set, both the caption .txt and a copy of the source image are written here instead."}),
+                "overwrite": ("BOOLEAN", {"default": False, "tooltip": "Off (default): skip to the first name that doesn't have a .txt yet in the destination (existing files are never touched). On: (re)write files in namelist order regardless of what's already there."}),
             }
         }
 
@@ -47,14 +56,17 @@ class YoshiakiLoRACaptionSave:
     FUNCTION = "save_text_file"
     CATEGORY = "yoshiaki-comfy/LoRA"
 
-    def save_text_file(self, text, path, namelist, prefix):
+    def save_text_file(self, text, path, namelist, prefix, output_path="", overwrite=False):
 
-        if not os.path.exists(path):
-            cstr(f"The path `{path}` doesn't exist! Creating it...").warning.print()
+        dest = output_path.strip() if output_path and output_path.strip() else path
+        copy_image = os.path.abspath(dest) != os.path.abspath(path)
+
+        if not os.path.exists(dest):
+            cstr(f"The path `{dest}` doesn't exist! Creating it...").warning.print()
             try:
-                os.makedirs(path, exist_ok=True)
+                os.makedirs(dest, exist_ok=True)
             except OSError as e:
-                cstr(f"The path `{path}` could not be created! Is there write access?\n{e}").error.print()
+                cstr(f"The path `{dest}` could not be created! Is there write access?\n{e}").error.print()
 
         if text.strip() == '':
             cstr(f"There is no text specified to save! Text is empty.").error.print()
@@ -70,10 +82,20 @@ class YoshiakiLoRACaptionSave:
             prefix += ", "
 
         file_extension = '.txt'
-        filename = self.generate_filename(path, namelistsplit, file_extension)
+        if overwrite:
+            index = self._overwrite_index % len(namelistsplit)
+            self._overwrite_index += 1
+            base_name = namelistsplit[index]
+            filename = f"{base_name}{file_extension}"
+        else:
+            filename = self.generate_filename(dest, namelistsplit, file_extension)
+            base_name = filename[:-len(file_extension)]
 
-        file_path = os.path.join(path, filename)
+        file_path = os.path.join(dest, filename)
         self.writeTextFile(file_path, text, prefix)
+
+        if copy_image:
+            self.copy_source_image(path, dest, base_name, overwrite)
 
         return (text, { "ui": { "string": text } } )
 
@@ -85,6 +107,22 @@ class YoshiakiLoRACaptionSave:
             filename = f"{namelistsplit[counter-1]}{extension}"
 
         return filename
+
+    def copy_source_image(self, src_dir, dest_dir, base_name, overwrite):
+        src_image = os.path.join(src_dir, base_name + ".png")
+        dst_image = os.path.join(dest_dir, base_name + ".png")
+
+        if not os.path.exists(src_image):
+            cstr(f"Source image `{src_image}` not found, skipping image copy.").warning.print()
+            return
+
+        if os.path.exists(dst_image) and not overwrite:
+            return
+
+        try:
+            shutil.copy2(src_image, dst_image)
+        except OSError as e:
+            cstr(f"Unable to copy image to `{dst_image}`\n{e}").error.print()
 
     def writeTextFile(self, file, content, prefix):
         try:

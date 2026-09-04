@@ -24,6 +24,26 @@
 
 ---
 
+## タスク: YoshiakiLoRACaptionSave に output_path（保存先分離＋画像コピー）と overwrite（上書き）を追加
+
+- **完了日**: 2026-09-04
+- **動作確認**: ✅済み（スタンドアロンスクリプトで4パターンを検証: ①`output_path`未指定時は従来通りの挙動を維持しコピーも発生しないこと、②`output_path`指定時は`.txt`と元画像コピーの両方が新フォルダに書き出され、複数回呼び出しても正しく次のファイルへ進むこと、③`overwrite=True`で`Name list`の順番通りに既存ファイルの中身を実際に上書きできること、④新しい`YoshiakiLoRACaptionSave`インスタンスを作るとカウンターが0にリセットされること。ComfyUI実機でのキュー実行を跨いだインスタンス再生成の確認はユーザー側で実施予定）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_loracaption/lora_caption.py` : `YoshiakiLoRACaptionSave`に`optional`入力`output_path`（STRING, 既定空文字）・`overwrite`（BOOLEAN, 既定False）を追加。`copy_source_image()`メソッドを新設し、`output_path`が`path`と異なる場合に元画像ファイルを`shutil.copy2`でそのままコピー（再エンコードなし）。`__init__`に`self._overwrite_index`カウンターを追加
+  - `README.md` : `Yoshiaki LoRA Caption Load / Save`セクションに`output_path`/`overwrite`の説明を追加
+  - `CLAUDE.md` : 該当ノードの備考を更新
+- **変更内容**:
+  - 従来`YoshiakiLoRACaptionSave`は「`.txt`が無い最初のファイル名」を毎回探して1件処理する仕組みで、画像ファイル自体はコピーしていなかった（`path`に`.txt`を書くのみ）
+  - `output_path`を空欄のままにすれば完全に従来通りの挙動（画像コピー無し）。指定すると、そのフォルダへ`.txt`と元画像コピーの両方を書き出す設計にし、既存ワークフローへの互換性を確保した
+  - `overwrite`のデフォルトはOFF（既存ファイルを残す、ユーザー確定事項）。ONの場合の.txt選択ロジックが技術的な検討事項になった: このノードは画像何枚分もの`text`をComfyUIの`map_node_over_list`機構（`text`がWD14Tagger等のリスト出力に接続されている場合、ComfyUIが画像枚数分Saveノードを自動的に繰り返し呼ぶ）で1件ずつ受け取り、「.txtが無い最初のファイル」という判定だけで「今回はどの画像か」を推測している。`overwrite=True`で単純に「存在を無視して書く」だけにすると毎回同じ1件目を上書きし続けてしまうため、ノードインスタンスの`self._overwrite_index`カウンターを使い、`Name list`の順番通りに1件ずつ進める方式にした
+  - 画像コピー側にも同じ`overwrite`設定を適用（OFF:コピー先に同名ファイルがあればスキップ、ON:上書き）
+- **備考**:
+  - `self._overwrite_index`によるカウンター方式は、「ComfyUIはキュー実行ごとにノードインスタンスを新しく作り直す」という前提に依存している。この前提はComfyUIの一般的な実行モデルとして妥当だが、実機での複数回キュー実行（特に同一ワークフローを続けて何度も投入するケース）での動作確認を推奨
+  - ユーザーの実際の利用目的: 同じ画像セットに対し複数のLLMモデルでキャプションを生成し比較する実験用途。「最悪上書きされて消えても問題ない」との実験目的での利用であることを確認済み
+
+---
+
 ## タスク: Image-Captioning-in-ComfyUI(フォーク)を yoshiaki-comfy へ統合(YoshiakiLoRACaptionLoad / YoshiakiLoRACaptionSave)
 
 - **完了日**: 2026-09-04
