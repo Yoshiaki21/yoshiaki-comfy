@@ -9,8 +9,10 @@
 | **Yoshiaki Wildcard Processor** (`YoshiakiWildcardProcessor`) | ワイルドカード構文のテキストを解決して文字列を出力する |
 | **Yoshiaki Wildcard Encode** (`YoshiakiWildcardEncode`) | ワイルドカード構文とLoRA構文を解決し、LoRA適用済みの `MODEL`/`CLIP` とCLIP条件付け(`CONDITIONING`)を出力する |
 | **Yoshiaki-LLMCaptionGenerator** (`YoshiakiLLMCaptionGenerator`) | WD14 Tagger等が出力したタグを画像と一緒にローカルLLM（Lemonade Server）へ渡し、タグの補正やキャプション文を生成する |
+| **Yoshiaki LoRA Caption Load** (`YoshiakiLoRACaptionLoad`) | 指定フォルダ内のPNG画像とファイル名一覧を読み込む（LoRA学習用データセット準備の入力側） |
+| **Yoshiaki LoRA Caption Save** (`YoshiakiLoRACaptionSave`) | 画像ファイル名に対応するキャプション(`.txt`)を、共通プレフィックス付きで保存する |
 
-`YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack) の `ImpactWildcardProcessor` / `ImpactWildcardEncode` を、この2ノードだけ使う用途に切り出して単独パック化したものです。`YoshiakiLLMCaptionGenerator` はもともと別リポジトリ [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) として作っていたノードをこちらに統合したものです（当時の開発履歴は [docs/yoshiaki/tasks_done.LLM.md](docs/yoshiaki/tasks_done.LLM.md)、詳細仕様は [docs/yoshiaki/LLM_Caption_Node_指示書.md](docs/yoshiaki/LLM_Caption_Node_指示書.md) 参照）。いずれもノード名・Pythonパッケージ名を独自のものに変更しているため、元のリポジトリと同一環境に共存インストールしても衝突しません。
+`YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack) の `ImpactWildcardProcessor` / `ImpactWildcardEncode` を、この2ノードだけ使う用途に切り出して単独パック化したものです。`YoshiakiLLMCaptionGenerator` はもともと別リポジトリ [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) として作っていたノードをこちらに統合したものです（当時の開発履歴は [docs/yoshiaki/tasks_done.LLM.md](docs/yoshiaki/tasks_done.LLM.md)、詳細仕様は [docs/yoshiaki/LLM_Caption_Node_指示書.md](docs/yoshiaki/LLM_Caption_Node_指示書.md) 参照）。`YoshiakiLoRACaptionLoad` / `YoshiakiLoRACaptionSave` は自分のフォーク [Image-Captioning-in-ComfyUI](https://github.com/Yoshiaki21/Image-Captioning-in-ComfyUI)（本家: [LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI)）から統合したものです。いずれもノード名・Pythonパッケージ名を独自のものに変更しているため、元のリポジトリと同一環境に共存インストールしても衝突しません。
 
 ---
 
@@ -192,6 +194,28 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 
 ---
 
+## Yoshiaki LoRA Caption Load / Save
+
+LoRA学習用データセットの準備（画像 + キャプションのペア作成）を補助する2ノードです。WD14 Taggerと組み合わせて使うことを想定しています。
+
+```
+[Yoshiaki LoRA Caption Load] → Image list ──────────→ [WD14Tagger] → tags
+       ├─ Name list ─────────────────────────────────────────────────┐
+       └─ path ──────────────────────────────────────────────────┐   │
+                                                                   ▼   ▼
+                                                        [Yoshiaki LoRA Caption Save]
+```
+
+- **Yoshiaki LoRA Caption Load**: `path`で指定したフォルダ内のPNG画像を全て読み込み、`Image list`（画像バッチ）と`Name list`（ファイル名一覧、改行区切り）、`path`（そのまま）を出力する
+- **Yoshiaki LoRA Caption Save**: `Name list`・`path`・`text`（キャプション文字列）を受け取り、画像ファイルと同じ名前の`.txt`をそのフォルダに保存する。`prefix`（任意）を指定すると、トリガーワード等をキャプションの先頭に自動で付加できる
+
+**既知の制約（本家・フォーク由来、今回の統合ではそのまま維持）**:
+- 画像は**PNGのみ**対応
+- 同名の`.txt`が既にあるフォルダに対して`Yoshiaki LoRA Caption Load`→`Yoshiaki LoRA Caption Save`を実行するとエラーになる（先に`.txt`を消してから再実行する必要がある）
+- フォルダ内の画像が**ちょうど1枚**の場合、`Yoshiaki LoRA Caption Load`の出力の型が壊れる既知のバグが本家側に存在する（2枚以上なら問題なし）。実用上1枚だけを指定することがないため、今回は修正せずそのまま移植している
+
+---
+
 ## インストール
 
 このリポジトリをComfyUIの `custom_nodes` フォルダ内にクローン（またはシンボリックリンク）し、以下を実行してください。
@@ -206,4 +230,4 @@ pip install -r requirements.txt
 
 ## ライセンス
 
-`YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack)（GPLv3）からのコードを含みます。`YoshiakiLLMCaptionGenerator` は自作の [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) からの移植です。個人利用のみで配布予定はありません。
+`YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack)（GPLv3）からのコードを含みます。`YoshiakiLLMCaptionGenerator` は自作の [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) からの移植です。`YoshiakiLoRACaptionLoad` / `YoshiakiLoRACaptionSave` は [LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI) を自分がフォークしたものからの移植です（本家・フォークともにOSSライセンスの明記なし）。個人利用のみで配布予定はありません。

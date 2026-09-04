@@ -51,3 +51,19 @@
 
 ---
 
+### YoshiakiLoRACaptionLoad / YoshiakiLoRACaptionSave
+
+- **実装日**: 2026-09-04（自分のフォーク[Image-Captioning-in-ComfyUI](https://github.com/Yoshiaki21/Image-Captioning-in-ComfyUI)からyoshiaki-comfyへ統合。本家は[LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI)）
+- **カスタムノードの機能の概要**:
+  - `YoshiakiLoRACaptionLoad`: 指定フォルダ内のPNG画像を読み込み、画像バッチ・ファイル名一覧・pathを出力
+  - `YoshiakiLoRACaptionSave`: ファイル名一覧・path・キャプション文字列を受け取り、画像と同名の`.txt`をプレフィックス付きで保存（LoRA学習用データセット準備）
+  - WD14 Taggerと組み合わせて使う想定（コード上の依存ではなくワークフロー上の連携）
+- **備考**:
+  - `class_type`/表示名は`YoshiakiLoRACaptionLoad`/`YoshiakiLoRACaptionSave`(表示名は`Yoshiaki LoRA Caption Load`/`Yoshiaki LoRA Caption Save`)、`CATEGORY`は`yoshiaki-comfy/LoRA`
+  - フォーク元の3つの既存パッチ（`cstr`未import対策、prefix空文字対策、`IS_CHANGED`未定義対策）をそのまま維持して移植
+  - **既知の未修正バグ**: `YoshiakiLoRACaptionLoad`は画像がちょうど1枚のフォルダを渡すと戻り値の数が`RETURN_TYPES`と合わず壊れる（本家・フォーク由来の既存バグ）。実用上1枚だけを指定するケースが無いため、今回は修正せずそのまま移植。修正は別タスクとして保留
+  - PNGのみ対応、同名`.txt`が既存のフォルダに対して実行するとエラーになる制約は本家のまま
+  - 配布予定なし、個人利用限定
+
+---
+

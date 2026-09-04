@@ -24,6 +24,27 @@
 
 ---
 
+## タスク: Image-Captioning-in-ComfyUI(フォーク)を yoshiaki-comfy へ統合(YoshiakiLoRACaptionLoad / YoshiakiLoRACaptionSave)
+
+- **完了日**: 2026-09-04
+- **動作確認**: ✅済み（`modules/yoshiaki_loracaption/lora_caption.py`を単体importし、`comfy`をスタブ化した上で実際に2枚のPNG画像を生成→`YoshiakiLoRACaptionLoad`で読み込み→`YoshiakiLoRACaptionSave`でprefix付きキャプションを`.txt`保存するまでの一連の動作を確認。ComfyUI実機でのWD14 Tagger連携込みの確認はユーザー側で実施予定）
+- **新規ファイル**:
+  - `modules/yoshiaki_loracaption/lora_caption.py` : [Yoshiaki21/Image-Captioning-in-ComfyUI](https://github.com/Yoshiaki21/Image-Captioning-in-ComfyUI)（本家: [LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI)）の`LoRAcaption.py`を移植。クラス名を`LoRACaptionSave`/`LoRACaptionLoad`→`YoshiakiLoRACaptionSave`/`YoshiakiLoRACaptionLoad`に変更、`CATEGORY`を`LJRE/LORA`→`yoshiaki-comfy/LoRA`に変更、`NODE_CLASS_MAPPINGS`のキーをPascalCase形式に統一、`NODE_DISPLAY_NAME_MAPPINGS`を新規追加（元は空だった）
+- **修正ファイル**:
+  - `__init__.py` : `yoshiaki_loracaption.lora_caption`の`NODE_CLASS_MAPPINGS`/`NODE_DISPLAY_NAME_MAPPINGS`を他2パックとマージするよう変更
+  - `README.md` : ノード一覧に追加、`Yoshiaki LoRA Caption Load / Save`セクション（使い方・ワークフロー図・既知の制約）を追加、ライセンス節に統合元を追記
+  - `CLAUDE.md` : 「含まれるカスタムノード」セクションに追記
+- **変更内容**:
+  - フォーク元（本家からの差分3箇所: `cstr`未import対策、`prefix`空文字対策、`IS_CHANGED`未定義対策、いずれも機能追加ではなくバグ回避パッチ）をGitHub API経由で調査し、本家との差分をdiffで確認した上でそのまま移植
+  - 依存関係を確認した結果、標準ライブラリ＋`PIL`/`numpy`（既存の`requirements.txt`でカバー済み）＋ComfyUI本体が提供する`torch`/`comfy`のみで完結しており、他のComfyUIカスタムノードパックへのコード依存はゼロと判断
+  - JSファイル（独自フロントエンドUI）は無いため、今回の統合ではPython側のみの追加で完結（既存ワークフローへの互換性リスクなし）
+- **備考**:
+  - **既知の未修正バグをそのまま移植**: `YoshiakiLoRACaptionLoad.captionload()`は、画像がちょうど1枚のフォルダを渡すと戻り値の要素数が`RETURN_TYPES`(3種)と合わず壊れる（`return (images[0], 1)`のみ返す分岐）。また画像が0枚（PNGが1つも無い）場合は`image1`が未定義のまま参照され`UnboundLocalError`になる別の潜在バグも発見。どちらも本家・フォーク双方に存在する既存バグで、今回の統合では意図的に修正せずそのまま移植した（ユーザーの運用上、画像1枚・0枚のケースが無いため）。修正する場合は別タスクとして対応予定
+  - フォーク元・本家ともにOSSライセンスの明記なし（`license: null`）。個人利用・非公開のためリスクは低いが留意事項として記録
+  - 配布予定なし、個人利用限定
+
+---
+
 ## タスク: LoRA選択にもフォルダ絞り込みを追加
 
 - **完了日**: 2026-09-04
