@@ -17,7 +17,10 @@ const LORA_FOLDER_STORAGE_PREFIX = "yoshiaki-lora-folder:";
 
 async function load_wildcards() {
 	try {
-		let res = await api.fetchApi('/yoshiaki/wildcards/list');
+		// /refresh rescans the wildcards folder(s) on disk before returning
+		// the list (same data shape as /list), so a page reload always picks
+		// up files added/removed since the server started.
+		let res = await api.fetchApi('/yoshiaki/wildcards/refresh');
 		let data = await res.json();
 		wildcards_list = data.data;
 	} catch (error) {
@@ -122,7 +125,6 @@ app.registerExtension({
 			id: 'refresh-yoshiaki-wildcard',
 			label: 'Yoshiaki: Refresh Wildcard List',
 			function: async () => {
-				await api.fetchApi('/yoshiaki/wildcards/refresh');
 				await load_wildcards();
 			}
 		}
