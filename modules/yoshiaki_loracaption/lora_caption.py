@@ -216,7 +216,7 @@ class YoshiakiLoRACaptionLoad:
         # Image count is shown on this node only (via "ui"), not sent to any
         # other node -- RETURN_TYPES stays at exactly the 3 declared outputs.
         return {
-            "ui": {"text": [f"{len(images)} image(s)"]},
+            "ui": {"text": [f"{len(images)} images"]},
             "result": (text, path, image1),
         }
 
