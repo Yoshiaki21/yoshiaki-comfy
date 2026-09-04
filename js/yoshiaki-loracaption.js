@@ -18,6 +18,10 @@ app.registerExtension({
 		nodeType.prototype.onExecuted = function (message) {
 			onExecuted?.apply(this, arguments);
 
+			// Debug: check the browser DevTools console (F12) for this
+			// line to see exactly what ComfyUI delivered here.
+			console.log("[yoshiaki-comfy] YoshiakiLoRACaptionLoad onExecuted message:", message);
+
 			// widgets[0] is the "path" input widget declared in INPUT_TYPES;
 			// drop anything after it (a display widget from a previous run)
 			// before adding a fresh one, so repeated executions don't pile up.
