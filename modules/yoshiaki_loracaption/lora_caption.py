@@ -181,13 +181,15 @@ class YoshiakiLoRACaptionLoad:
         valid_extensions = ['.png']
         dir_files = [f for f in dir_files if any(f.lower().endswith(ext) for ext in valid_extensions)]
 
+        if len(dir_files) == 0:
+            raise FileNotFoundError(f"No PNG images found in path '{path}'.")
+
         dir_files = [os.path.join(path, x) for x in dir_files]
 
         images = []
-        image_count = 0
 
         for image_path in dir_files:
-            if os.path.isdir(image_path) and os.path.ex:
+            if os.path.isdir(image_path):
                 continue
             i = Image.open(image_path)
             i = ImageOps.exif_transpose(i)
@@ -195,18 +197,22 @@ class YoshiakiLoRACaptionLoad:
             image = np.array(image).astype(np.float32) / 255.0
             image = torch.from_numpy(image)[None,]
             images.append(image)
-            image_count += 1
 
-        if len(images) == 1:
-            return (images[0], 1)
-        elif len(images) > 1:
-            image1 = images[0]
-            for image2 in images[1:]:
-                if image1.shape[1:] != image2.shape[1:]:
-                    image2 = comfy.utils.common_upscale(image2.movedim(-1, 1), image1.shape[2], image1.shape[1], "bilinear", "center").movedim(1, -1)
-                image1 = torch.cat((image1, image2), dim=0)
+        # Batch every loaded image into a single IMAGE tensor -- this loop
+        # naturally also handles the single-image case (the loop body just
+        # never runs when there's nothing in images[1:]).
+        image1 = images[0]
+        for image2 in images[1:]:
+            if image1.shape[1:] != image2.shape[1:]:
+                image2 = comfy.utils.common_upscale(image2.movedim(-1, 1), image1.shape[2], image1.shape[1], "bilinear", "center").movedim(1, -1)
+            image1 = torch.cat((image1, image2), dim=0)
 
-        return text, path, image1, len(images)
+        # Image count is shown on this node only (via "ui"), not sent to any
+        # other node -- RETURN_TYPES stays at exactly the 3 declared outputs.
+        return {
+            "ui": {"text": [f"{len(images)} image(s)"]},
+            "result": (text, path, image1),
+        }
 
 
 NODE_CLASS_MAPPINGS = {

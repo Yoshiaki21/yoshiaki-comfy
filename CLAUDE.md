@@ -59,10 +59,10 @@
   - `YoshiakiLoRACaptionSave`: ファイル名一覧・path・キャプション文字列を受け取り、画像と同名の`.txt`をプレフィックス付きで保存（LoRA学習用データセット準備）
   - WD14 Taggerと組み合わせて使う想定（コード上の依存ではなくワークフロー上の連携）
   - `YoshiakiLoRACaptionSave`に`output_path`（保存先を`path`と分けて指定、指定時は元画像もコピーする）と`overwrite`（既存ファイルを無視して`Name list`順に上書きする）を追加（2026-09-04）
+  - `YoshiakiLoRACaptionLoad`の潜在バグを修正（2026-09-04）: 画像0枚時（PNGが1枚も無い場合）に明確な`FileNotFoundError`を出すようにした、画像1枚のときに出力の型が壊れる不具合を修正（1枚/複数枚を統一処理）、画像枚数をノード自身のUI表示にのみ出すようにした（`{"ui": {"text": [...]}, "result": (...)}`形式。他ノードへは渡らず`RETURN_TYPES`は3出力のまま変更なし）
 - **備考**:
   - `class_type`/表示名は`YoshiakiLoRACaptionLoad`/`YoshiakiLoRACaptionSave`(表示名は`Yoshiaki LoRA Caption Load`/`Yoshiaki LoRA Caption Save`)、`CATEGORY`は`yoshiaki-comfy/LoRA`
   - フォーク元の3つの既存パッチ（`cstr`未import対策、prefix空文字対策、`IS_CHANGED`未定義対策）をそのまま維持して移植
-  - **既知の未修正バグ**: `YoshiakiLoRACaptionLoad`は画像がちょうど1枚のフォルダを渡すと戻り値の数が`RETURN_TYPES`と合わず壊れる（本家・フォーク由来の既存バグ）。実用上1枚だけを指定するケースが無いため、今回は修正せずそのまま移植。修正は別タスクとして保留
   - PNGのみ対応、同名`.txt`が既存のフォルダに対して実行するとエラーになる制約は本家のまま
   - 配布予定なし、個人利用限定
 

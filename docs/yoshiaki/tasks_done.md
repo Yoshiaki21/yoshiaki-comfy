@@ -24,6 +24,24 @@
 
 ---
 
+## タスク: YoshiakiLoRACaptionLoad の潜在バグ修正（画像0枚・1枚のケース）
+
+- **完了日**: 2026-09-04
+- **動作確認**: ✅済み（スタンドアロンスクリプトで3パターンを検証: ①PNGが1枚も無いフォルダを渡すと明確な`FileNotFoundError`になること、②画像がちょうど1枚のフォルダで`RETURN_TYPES`(3出力)と一致した正しい戻り値になること、③画像が複数枚の既存動作に影響が無いこと。いずれも`ui`の画像枚数表示が正しい値になることも確認。ComfyUI実機での確認はユーザー側で実施予定）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_loracaption/lora_caption.py` : `YoshiakiLoRACaptionLoad.captionload()`を修正
+- **変更内容**:
+  - **画像0枚（PNGが1枚も無い）の場合**: 拡張子フィルタ後のファイル数チェックを追加し、`FileNotFoundError(f"No PNG images found in path '{path}'.")`を明示的に送出するようにした（修正前は`image1`が未定義のまま参照され、分かりにくい`UnboundLocalError`になっていた）
+  - **画像がちょうど1枚の場合**: `if len(images)==1: return (images[0], 1)`という、`RETURN_TYPES`（3出力: Name list, path, Image list）と噛み合わない特殊分岐を削除。1枚でも複数枚でも同じバッチ化ループで処理する統一実装に変更（ループは`images[1:]`が空なら自然に1回も回らないだけなので、1枚のケースも複数枚のケースと同じコードパスで正しく動く）
+  - **戻り値の形**: 従来`return text, path, image1, len(images)`と`RETURN_TYPES`(3個)に対して4値returnしていた食い違いを解消。`len(images)`（画像枚数）は他ノードへの出力にはせず、`{"ui": {"text": [...]}, "result": (text, path, image1)}`という ComfyUI標準の「ui表示専用」形式で`YoshiakiLoRACaptionLoad`自身のノード上にのみ表示するようにした（`RETURN_TYPES`は3出力のまま変更なし、既存ワークフローの出力配線に影響なし）
+  - ついでに、実質到達不能だった`os.path.ex`という存在しない属性への参照（`if os.path.isdir(image_path) and os.path.ex:`）も、意図を保ったまま`if os.path.isdir(image_path): continue`に修正（今回のリファクタ対象コードに含まれていたため合わせて修正。動作は変わらない）
+- **備考**:
+  - `ui`によるノード上のテキスト表示が実際にComfyUIのフロントエンドで見えるかは、ComfyUIのバージョンに依存する可能性がある（ユーザーと合意済みの方針: まずJS無しの標準的な`ui`形式で実装し、実機で表示されなければ専用のJSを追加する）。実機での見た目確認が必要
+  - 配布予定なし、個人利用限定
+
+---
+
 ## タスク: YoshiakiLoRACaptionSave に output_path（保存先分離＋画像コピー）と overwrite（上書き）を追加
 
 - **完了日**: 2026-09-04
