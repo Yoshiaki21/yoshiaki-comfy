@@ -159,6 +159,12 @@ class YoshiakiLoRACaptionLoad:
 
     CATEGORY = "yoshiaki-comfy/LoRA"
 
+    # Required for the {"ui": {"text": [...]}} image-count display to
+    # actually reach the frontend (see js/yoshiaki-loracaption.js) --
+    # without this ComfyUI doesn't forward "ui" data for a node that isn't
+    # marked as an output node.
+    OUTPUT_NODE = True
+
     # --- patch: pathが同じでも毎回フォルダを再スキャンさせる（IS_CHANGED未定義対策） ---
     @classmethod
     def IS_CHANGED(cls, path):

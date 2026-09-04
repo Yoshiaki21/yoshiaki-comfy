@@ -33,8 +33,10 @@ app.registerExtension({
 			widget.inputEl.readOnly = true;
 			widget.inputEl.style.opacity = 0.7;
 			widget.value = text;
+			widget.inputEl.value = text;
 
 			this.onResize?.(this.size);
+			this.graph?.setDirtyCanvas(true, true);
 		};
 	}
 });

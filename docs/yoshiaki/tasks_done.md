@@ -24,6 +24,22 @@
 
 ---
 
+## タスク: YoshiakiLoRACaptionLoad の画像枚数表示が空になる不具合を修正（OUTPUT_NODE未設定が原因）
+
+- **完了日**: 2026-09-04
+- **動作確認**: ⬜未確認（コード修正のみ。ユーザー側で実機確認予定）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_loracaption/lora_caption.py` : `YoshiakiLoRACaptionLoad`に`OUTPUT_NODE = True`を追加
+  - `js/yoshiaki-loracaption.js` : `widget.inputEl.value`も明示的に設定、`setDirtyCanvas`で再描画を強制するよう堅牢化
+- **変更内容**:
+  - 前タスクでJSを追加したところ、表示欄自体は作られるが中身が空という報告を受けた
+  - 原因調査の結果、ComfyUIは`{"ui": {...}}`の中身を、`OUTPUT_NODE = True`が指定されているノード（`SaveImage`や`YoshiakiLoRACaptionSave`等）以外には転送しない可能性が高いと判断。`YoshiakiLoRACaptionLoad`には`OUTPUT_NODE`が未設定だったため、`onExecuted`は呼ばれるがメッセージの中身が空になっていたと推測される
+  - `OUTPUT_NODE = True`を追加して対応
+- **備考**: 実機確認待ち。これでも解消しない場合は、`api.addEventListener("executed", ...)`で実際のメッセージ内容をログ出力して原因を再調査する
+
+---
+
 ## タスク: YoshiakiLoRACaptionLoad の画像枚数表示にJSを追加（ui.textが自動描画されなかったため）
 
 - **完了日**: 2026-09-04
