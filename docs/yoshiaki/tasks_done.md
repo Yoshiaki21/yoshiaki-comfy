@@ -24,6 +24,21 @@
 
 ---
 
+## タスク: image_countウィジェットが表示されないエラーを修正（multiline指定漏れ）
+
+- **完了日**: 2026-09-04
+- **動作確認**: ⬜未確認（コード修正のみ。ユーザー側で実機確認予定）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `js/yoshiaki-loracaption.js` : `ComfyWidgets["STRING"]`呼び出し時のオプションを`{ multiline: false }`→`{ multiline: true }`に変更。デバッグ用の`console.log`を削除
+- **変更内容**:
+  - 前タスクの`OUTPUT_NODE = True`追加は正しく機能しており、ブラウザコンソールで`message`に`{text: ["N image(s)"]}`が正しく届いていることを確認できた
+  - しかし`widget.inputEl.readOnly = true`の行で`TypeError: widget.inputEl is undefined`が発生していた。原因は`ComfyWidgets["STRING"]`が`multiline: false`（1行）指定のときはLiteGraph標準のcanvas描画のみのテキストウィジェットを返し、`.inputEl`（実DOM要素）を持たないため。`.inputEl`はmultiline指定（複数行、textarea実装）のときのみ生成される仕様だった
+  - `multiline: true`に変更して解消
+- **備考**: なし
+
+---
+
 ## タスク: YoshiakiLoRACaptionLoad の画像枚数表示が空になる不具合を修正（OUTPUT_NODE未設定が原因）
 
 - **完了日**: 2026-09-04

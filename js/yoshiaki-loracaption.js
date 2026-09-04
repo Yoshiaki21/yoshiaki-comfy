@@ -18,10 +18,6 @@ app.registerExtension({
 		nodeType.prototype.onExecuted = function (message) {
 			onExecuted?.apply(this, arguments);
 
-			// Debug: check the browser DevTools console (F12) for this
-			// line to see exactly what ComfyUI delivered here.
-			console.log("[yoshiaki-comfy] YoshiakiLoRACaptionLoad onExecuted message:", message);
-
 			// widgets[0] is the "path" input widget declared in INPUT_TYPES;
 			// drop anything after it (a display widget from a previous run)
 			// before adding a fresh one, so repeated executions don't pile up.
@@ -33,7 +29,10 @@ app.registerExtension({
 			}
 
 			const text = message?.text?.[0] ?? "";
-			const widget = ComfyWidgets["STRING"](this, "image_count", ["STRING", { multiline: false }], app).widget;
+			// multiline:true is required here -- only the multiline variant
+			// creates a real DOM <textarea> (.inputEl); the single-line
+			// "text" widget is canvas-drawn only and has no .inputEl.
+			const widget = ComfyWidgets["STRING"](this, "image_count", ["STRING", { multiline: true }], app).widget;
 			widget.inputEl.readOnly = true;
 			widget.inputEl.style.opacity = 0.7;
 			widget.value = text;
