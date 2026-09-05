@@ -165,12 +165,23 @@ app.registerExtension({
 				'combo',
 				'LoRA Folder',
 				node._lora_folder,
-				(value) => {
+				() => {},
+				{ values: folders_from_items(lora_list, lora_entry_path) }
+			);
+			// NOTE: value lives on `node._lora_folder`, kept in sync via this
+			// setter rather than the `.callback` above. When a saved workflow
+			// is restored (page reload), ComfyUI sets `widget.value` directly
+			// without invoking `.callback` -- relying on the callback alone
+			// left `node._lora_folder` stuck at whatever nodeCreated computed,
+			// desynced from the widget's own (correctly restored) displayed
+			// value. The setter fires either way, so both stay in sync.
+			Object.defineProperty(lora_folder_widget, "value", {
+				set: (value) => {
 					node._lora_folder = value;
 					save_stored_folder(LORA_FOLDER_STORAGE_PREFIX, node, value);
 				},
-				{ values: folders_from_items(lora_list, lora_entry_path) }
-			);
+				get: () => node._lora_folder
+			});
 			Object.defineProperty(lora_folder_widget.options, "values", {
 				set: () => {},
 				get: () => folders_from_items(lora_list, lora_entry_path)
@@ -185,12 +196,19 @@ app.registerExtension({
 			'combo',
 			'Wildcard Folder',
 			node._wildcard_folder,
-			(value) => {
+			() => {},
+			{ values: folders_from_items(wildcards_list, wildcard_entry_path) }
+		);
+		// See the matching comment on lora_folder_widget above: the setter (not
+		// the `.callback`) is what keeps node._wildcard_folder in sync, because
+		// workflow restoration on page reload sets `.value` directly.
+		Object.defineProperty(wildcard_folder_widget, "value", {
+			set: (value) => {
 				node._wildcard_folder = value;
 				save_stored_folder(WILDCARD_FOLDER_STORAGE_PREFIX, node, value);
 			},
-			{ values: folders_from_items(wildcards_list, wildcard_entry_path) }
-		);
+			get: () => node._wildcard_folder
+		});
 		Object.defineProperty(wildcard_folder_widget.options, "values", {
 			set: () => {},
 			get: () => folders_from_items(wildcards_list, wildcard_entry_path)

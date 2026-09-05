@@ -38,6 +38,22 @@
 
 ---
 
+## タスク: リロード後、Wildcard Folder/LoRA Folderの絞り込みが「(no folder)」に戻ってしまう不具合を修正
+
+- **完了日**: 2026-09-04
+- **動作確認**: ⬜未確認（コード修正のみ。ユーザー側で実機確認予定）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `js/yoshiaki-wildcard.js` : `wildcard_folder_widget`/`lora_folder_widget`の値管理を、`.callback`頼みから`Object.defineProperty`による`value`セッター経由に変更（`node._wildcard_folder`/`node._lora_folder`はこのセッター内でのみ更新するようにした）
+- **原因**:
+  - `no folder`以外のフォルダを選んだ状態でブラウザをリロードすると、ウィジェット自体の表示（復元された値）は正しいのに、絞り込みに使っている内部変数（`node._wildcard_folder`等）が`nodeCreated`実行時点の値のまま止まってしまい、「(no folder)」の内容が表示され続けていた
+  - ComfyUIはワークフロー復元（リロード）時、保存済みウィジェットの値を`.callback`を呼ばずに`widget.value`へ直接代入する。今までは値の更新を`.callback`だけに頼っていたため、復元時にウィジェットの表示は直っても内部変数だけが同期されずに取り残されていた（候補が多いときの検索UIで発生した不具合と同じ根本原因）
+  - 同じ値を選び直しても直らなかったのは、値が変化しない選択操作ではLiteGraphが`.callback`（今回のケースでは`.value`の代入自体も）を発火させないため。別のフォルダを選ぶと値が変化して初めて同期されるので正常に見えていた
+- **変更内容**: `.value`の読み書きをすべて`Object.defineProperty`のgetter/setter経由にし、ユーザーの手動選択・ComfyUIによる復元のどちらの経路で値が代入されても`node._wildcard_folder`/`node._lora_folder`が必ず同期されるようにした
+- **備考**: なし
+
+---
+
 ## タスク: LoRA Info初回表示時にCivitai情報を自動取得するように変更
 
 - **完了日**: 2026-09-04
