@@ -82,21 +82,25 @@ def find_wildcard_file(key):
     Returns (file_path, is_yaml). For a nested YAML key (e.g. "colors/warm")
     that isn't itself a filename, falls back to the parent file
     ("colors.yaml").
+
+    Looks up `available_wildcards` (the real, on-disk paths recorded by
+    wildcard_load()) instead of re-deriving a path from the normalized
+    (lowercased) key. Reconstructing a path from the lowercased key only
+    happened to work on case-insensitive filesystems (plain NTFS, WSL's
+    /mnt/c) and silently failed to find any folder/file whose real name has
+    uppercase letters on a case-sensitive one (native Linux ext4, e.g. Manjaro).
     """
-    candidates = [f"{key}.txt", f"{key}.yaml", f"{key}.yml"]
-    for base in get_search_dirs():
-        for rel in candidates:
-            path = os.path.join(base, rel)
-            if os.path.isfile(path):
-                return path, path.endswith((".yaml", ".yml"))
+    with _index_lock:
+        path = available_wildcards.get(key)
+    if path is not None:
+        return path, path.endswith((".yaml", ".yml"))
 
     if "/" in key:
         parent = key.split("/", 1)[0]
-        for base in get_search_dirs():
-            for rel in (f"{parent}.yaml", f"{parent}.yml"):
-                path = os.path.join(base, rel)
-                if os.path.isfile(path):
-                    return path, True
+        with _index_lock:
+            parent_path = available_wildcards.get(parent)
+        if parent_path is not None and parent_path.endswith((".yaml", ".yml")):
+            return parent_path, True
 
     return None, False
 
