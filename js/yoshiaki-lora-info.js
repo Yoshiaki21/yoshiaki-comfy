@@ -214,7 +214,7 @@ function inject_css() {
 .yoshiaki-lora-info-table td { padding: 4px 8px; border-bottom: 1px solid #383838; vertical-align: top; font-size: 13px; }
 .yoshiaki-lora-info-table td:first-child { color: #999; white-space: nowrap; width: 90px; }
 .yoshiaki-lora-info-table a { color: dodgerblue; }
-.yoshiaki-lora-info-words { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.yoshiaki-lora-info-words { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; margin-bottom: 6px; max-height: 220px; overflow-y: auto; padding: 4px; border: 1px solid #333; border-radius: 6px; }
 .yoshiaki-lora-info-word { background: #333; border-radius: 12px; padding: 3px 10px; font-size: 12px; cursor: pointer; user-select: none; }
 .yoshiaki-lora-info-word.-selected { background: dodgerblue; color: #fff; }
 .yoshiaki-lora-info-words-actions { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
