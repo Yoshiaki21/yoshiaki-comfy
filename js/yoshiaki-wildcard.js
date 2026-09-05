@@ -111,6 +111,19 @@ const lora_entry_path = (entry) => entry.replace(/\\/g, '/');
 // keeps the full path -- LoRA Add/Info need it to resolve the actual file).
 const lora_basename = (value) => lora_entry_path(value).split('/').pop();
 
+// Accepts either a full folder-prefixed path (a live selection from the
+// combo) or a bare filename (what ComfyUI restores into `.value` on reload,
+// since that's what the basename-only display leaves in widgets_values) and
+// always returns the full path. Without this, a reloaded workflow's
+// node._lora_value would be left folder-less, which both breaks LoRA
+// Add/Info and makes ComfyUI's "missing model" check fail to match it
+// against the real (folder-prefixed) lora list.
+function resolve_lora_value(value, lora_list) {
+	if (lora_list.includes(value)) return value;
+	const match = lora_list.find((full) => lora_basename(full) === value);
+	return match || value;
+}
+
 api.addEventListener("yoshiaki-node-feedback", ({ detail }) => {
 	const node = app.graph.getNodeById(Number(detail.node_id));
 	if (!node) return;
@@ -258,7 +271,7 @@ app.registerExtension({
 			// via "LoRA Info" doesn't force it into the text.
 			Object.defineProperty(lora_widget, "value", {
 				set: (value) => {
-					if (value !== LORA_LABEL) node._lora_value = value;
+					if (value !== LORA_LABEL) node._lora_value = resolve_lora_value(value, lora_list);
 				},
 				get: () => node._lora_value === LORA_LABEL ? LORA_LABEL : lora_basename(node._lora_value)
 			});
