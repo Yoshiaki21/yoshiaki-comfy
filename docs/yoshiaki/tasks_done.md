@@ -38,6 +38,31 @@
 
 ---
 
+## タスク: YoshiakiWildcardEncode に LoRA情報表示ダイアログを追加（rgthree-comfy風・縮小独自実装）
+
+- **完了日**: 2026-09-04
+- **動作確認**: ✅済み（`server`/`folder_paths`/`aiohttp`をスタブ化し、実際に`__metadata__`付きの偽`.safetensors`ファイルを生成して検証。①SHA256ハッシュ計算、②埋め込みメタデータからの`ss_tag_frequency`抽出、③Civitai未取得時の情報構築（`hasCivitaiData: false`）、④偽のCivitai応答をマージした場合の情報構築（`baseModel`/`civitaiLink`/トリガーワードの`source: "both"`判定を含む）、⑤メタデータ・Civitai応答それぞれのキャッシュファイルが正しく書き込まれることを確認。実機でのダイアログ表示・実際のCivitai問い合わせ・トリガーワードのコピー動作はユーザー側で実施予定）
+- **新規ファイル**:
+  - `modules/yoshiaki_lora_info/lora_info.py` : SHA256ハッシュ計算、`.safetensors`埋め込みメタデータの読み取り、Civitai API（`model-versions/by-hash`）への問い合わせ、ハッシュ単位のJSONキャッシュ、`/yoshiaki/lora_info`・`/yoshiaki/lora_info/refresh`サーバールート。[rgthree-comfy](https://github.com/rgthree/rgthree-comfy)（MIT）の`py/server/routes_model_info.py`・`utils_info.py`にある同種機能を参考にしたが、コードは移植せず独自に書き直した縮小版
+  - `js/yoshiaki-lora-info.js` : `YoshiakiWildcardEncode`の「Select to add LoRA」の直後に「LoRA Info」ボタンを追加。押すと、そのコンボで最後に選択したLoRA（`node._lora_value`）の情報を独自の簡易ダイアログ（オーバーレイ＋パネル、外部ライブラリ不使用）で表示。トリガーワードは選択トグル可能で「Copy selected」（選択分のみ）と「Copy all」（全件、本家rgthree-comfyには無い追加機能）の2つのコピーボタンを実装
+- **修正ファイル**:
+  - `__init__.py` : `yoshiaki_lora_info.lora_info`をimportしてサーバールートを登録（ノードではないため`NODE_CLASS_MAPPINGS`には追加しない）
+  - `.gitignore` : `modules/yoshiaki_lora_info/cache/`を追加
+  - `README.md` : LoRA構文セクションに「LoRA情報表示」の説明を追加
+  - `CLAUDE.md` : 「含まれるカスタムノード」セクションに追記（ノードではなく付随機能として区別）
+- **変更内容（事前検討でユーザーと合意した設計判断）**:
+  - フル機能（rgthree-comfyそのまま）ではなく縮小版として実装。含めたもの: ローカルメタデータ読み取り、Civitai問い合わせ＋キャッシュ、トリガーワード表示・選択・コピー、サンプル画像表示。含めなかったもの: 編集可能なメモ欄、独自の動画再生コントロール（ブラウザ標準の`<video controls>`で代替）、開発者向けメニュー、モデル一覧取得/削除/保存等の管理系API
+  - 新規pip依存を避けるため、本家の同期的な`requests`ではなく既存の`aiohttp`で非同期に書き直した
+  - キャッシュは本家rgthree-comfyの`<LoRA名>.rgthree-info.json`（LoRA本体の隣、ComfyUI共通の`models/loras/`フォルダに保存）や専用userdataディレクトリとは完全に独立させ、`modules/yoshiaki_lora_info/cache/`にハッシュ単位で保存する設計にした（同一環境に本物のrgthree-comfyが入っていても、互いのキャッシュファイルに一切触れない）
+  - 対象は`YoshiakiWildcardEncode`のみ（`YoshiakiWildcardProcessor`はLoRA機能自体が無いため対象外）
+- **備考**:
+  - 「Select to add LoRA」の直後にボタンウィジェットを挿入したため、既存の保存済み`YoshiakiWildcardEncode`ワークフローで`seed`の位置がさらに1つずれる可能性がある（Wildcard Folder・LoRA Folder追加時と同様の影響で、今回で3回目）
+  - ボタンの配置は、ユーザー提示のスクリーンショットで示された位置（LoRA Folder行付近）に近い「Select to add LoRA」の直後とした（rgthree本家のような、コンボ行に埋め込む形のアイコンボタンではなく、独立したボタン行として実装。埋め込み型はLiteGraphの独自ウィジェット描画が必要でより複雑なため、今回は見送り）
+  - MITライセンス（本家rgthree-comfy）
+  - 配布予定なし、個人利用限定
+
+---
+
 ## タスク: ComfyUI-WD14-Tagger(フォーク)を yoshiaki-comfy へ統合(YoshiakiWD14Tagger)
 
 - **完了日**: 2026-09-04

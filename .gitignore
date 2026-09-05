@@ -226,3 +226,6 @@ modules/yoshiaki_llm/logs/
 # yoshiaki-comfy: WD14 Tagger downloaded ONNX models + local settings override
 modules/yoshiaki_wd14tagger/models/
 modules/yoshiaki_wd14tagger/config.user.json
+
+# yoshiaki-comfy: LoRA info cache (hashed safetensors metadata + Civitai lookups)
+modules/yoshiaki_lora_info/cache/

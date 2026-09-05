@@ -43,6 +43,7 @@ from yoshiaki_wd14tagger.wd14tagger import (  # noqa: E402
     NODE_CLASS_MAPPINGS as _WD14TAGGER_NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as _WD14TAGGER_NODE_DISPLAY_NAME_MAPPINGS,
 )
+import yoshiaki_lora_info.lora_info  # noqa: F401, E402  (registers the LoRA info server routes; not a node)
 
 NODE_CLASS_MAPPINGS = {
     **_WILDCARD_NODE_CLASS_MAPPINGS,
