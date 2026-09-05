@@ -90,7 +90,8 @@
 
 - **実装日**: 2026-09-04
 - **機能の概要**:
-  - `YoshiakiWildcardEncode`の「Select to add LoRA」の下に「LoRA Info」ボタンを追加。直前にコンボで選択したLoRAについて、ファイル情報・トリガーワード・Civitaiリンク・サンプル画像を表示するダイアログを開く
+  - `YoshiakiWildcardEncode`の「Select to add LoRA」の下に「LoRA Info」「LoRA Add」の2ボタンを追加
+  - `Select to add LoRA`で選んでも即座にはプロンプトへ追加されず、選択中のLoRA名がコンボの表示に反映されるだけ（2026-09-04変更、下記タスク参照）。「LoRA Info」で内容確認、「LoRA Add」を押したときだけ`<lora:名前>`が`wildcard_text`へ追加される
   - [rgthree-comfy](https://github.com/rgthree/rgthree-comfy)（MIT）のPower Lora Loaderにある同種機能を参考に、**独自に書き直した縮小版**（コードの移植ではない）
 - **備考**:
   - モジュールは`modules/yoshiaki_lora_info/lora_info.py`（新規パッケージ、ノードではないため`NODE_CLASS_MAPPINGS`には登録しない）。サーバールートは`/yoshiaki/lora_info`（取得）・`/yoshiaki/lora_info/refresh`（Civitaiへ強制再取得）
@@ -98,7 +99,7 @@
   - キャッシュは`modules/yoshiaki_lora_info/cache/`（ハッシュ単位、`.gitignore`対象）に完全に独立して保存。本家rgthree-comfyの`<LoRA名>.rgthree-info.json`サイドカーファイルや専用userdataディレクトリには一切触れない（同じ環境に両方入っていても干渉しない）
   - 含めなかったもの: 編集可能なメモ欄、独自の動画再生コントロール（ブラウザ標準の`<video controls>`で代替）、開発者向けメニュー、モデル一覧取得/削除/保存等の管理系API
   - ユーザー追加要望として「全トリガーワードを一括コピー」ボタンを追加（本家rgthree-comfyには無い機能）
-  - JS側で「Select to add LoRA」の直後にボタンウィジェットを挿入するため、既存の保存済み`YoshiakiWildcardEncode`ワークフローで`seed`の位置がさらに1つずれる可能性がある（Wildcard Folder・LoRA Folder追加時と同様の影響。3回目の位置ずれ）
+  - JS側で「Select to add LoRA」の直後にボタンウィジェットを挿入するため、既存の保存済み`YoshiakiWildcardEncode`ワークフローで`seed`の位置がさらに1つずれる可能性がある（Wildcard Folder・LoRA Folder追加時と同様の影響。今回の「LoRA Add」追加で4回目の位置ずれ）
   - 配布予定なし、個人利用限定
 
 ---

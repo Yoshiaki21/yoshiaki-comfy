@@ -307,5 +307,24 @@ app.registerExtension({
 			open_lora_info_dialog(current);
 		});
 		move_widget_after(node, info_widget, lora_widget);
+
+		// Selecting a LoRA in the combo above only records which one is
+		// selected (see js/yoshiaki-wildcard.js) -- this button is what
+		// actually inserts it into wildcard_text, so you can freely browse
+		// LoRAs via "LoRA Info" without them ending up in the prompt.
+		const wildcard_text_widget = node.widgets.find((w) => w.name === "wildcard_text");
+		const add_widget = node.addWidget("button", "LoRA Add", null, () => {
+			const current = node._lora_value;
+			if (!current || current === NO_LORA_SELECTED) {
+				alert("Select a LoRA first.");
+				return;
+			}
+			let lora_name = current;
+			if (lora_name.endsWith(".safetensors")) {
+				lora_name = lora_name.slice(0, -12);
+			}
+			wildcard_text_widget.value += `<lora:${lora_name}>`;
+		});
+		move_widget_after(node, add_widget, info_widget);
 	},
 });

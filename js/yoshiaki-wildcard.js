@@ -247,17 +247,17 @@ app.registerExtension({
 		if (has_lora) {
 			node._lora_value = LORA_LABEL;
 
+			// The combo only records which LoRA is selected (shown in place of
+			// the placeholder) -- it no longer inserts anything into
+			// wildcard_text by itself. Use the "LoRA Add" button (see
+			// js/yoshiaki-lora-info.js, added right below "LoRA Info") to
+			// actually commit it to the prompt, so browsing/inspecting a LoRA
+			// via "LoRA Info" doesn't force it into the text.
 			Object.defineProperty(lora_widget, "value", {
 				set: (value) => {
-					if (value === LORA_LABEL) return;
-					node._lora_value = value;
-					let lora_name = value;
-					if (lora_name.endsWith('.safetensors')) {
-						lora_name = lora_name.slice(0, -12);
-					}
-					wildcard_text_widget.value += `<lora:${lora_name}>`;
+					if (value !== LORA_LABEL) node._lora_value = value;
 				},
-				get: () => LORA_LABEL
+				get: () => node._lora_value
 			});
 
 			Object.defineProperty(lora_widget.options, "values", {

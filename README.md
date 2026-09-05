@@ -75,14 +75,16 @@
 - `BREAK` でテキストを区切ると、区切りごとに個別にCLIPエンコードして連結する（Automatic1111互換の`BREAK`と同じ考え方）
 - LoRA Block Weight（`LBW=`構文, Inspire Pack連携）や `LOADER=nunchaku` 構文は**非対応**です（未使用のため意図的に省略。詳細は[docs/yoshiaki/tasks_done.md](docs/yoshiaki/tasks_done.md)参照）
 
-### LoRA情報表示
+### LoRA情報表示・追加ボタン
 
-`Select to add LoRA`の下に「LoRA Info」ボタンがあります。直前にそのコンボで選んだLoRAについて、以下を表示するダイアログを開きます。
+`Select to add LoRA`でLoRAを選んでも、**その時点ではプロンプトに追加されません**（コンボの表示が選んだLoRA名に変わるだけです）。情報を見るだけ、選ぶだけ、という使い方ができます。
 
-- ファイル名 / SHA256ハッシュ
-- 種類・ベースモデル、Civitaiへのリンク（未取得なら「Fetch info from Civitai」ボタンで取得）
-- トリガーワード（LoRAファイル自体に埋め込まれたメタデータ＋Civitai由来の両方をマージ）。クリックで選択でき、「Copy selected」（選択したものだけコピー）と「Copy all」（すべてコピー）が使える
-- Civitaiのサンプル画像（動画はブラウザ標準の再生UIで表示）
+- **LoRA Info**: 選択中のLoRAについて、以下を表示するダイアログを開きます
+  - ファイル名 / SHA256ハッシュ
+  - 種類・ベースモデル、Civitaiへのリンク（初回表示時に自動取得。失敗時は「Retry」で再取得）
+  - トリガーワード（LoRAファイル自体に埋め込まれたメタデータ＋Civitai由来の両方をマージ）。クリックで選択でき、「Copy selected」（選択したものだけコピー）と「Copy all」（すべてコピー）が使える
+  - Civitaiのサンプル画像（seed/steps/cfg/sampler/model、Positive/Negativeプロンプトとそれぞれの「Copy」ボタン付き）
+- **LoRA Add**: 選択中のLoRAを、実際に`<lora:名前>`の形で`wildcard_text`へ追加します。情報を確認してから「これを使う」と決めたときに押してください
 
 [rgthree-comfy](https://github.com/rgthree/rgthree-comfy)（MITライセンス）のPower Lora Loaderにある同種の機能を参考にしていますが、**そのコードを移植したものではなく独自に書き直した縮小版**です。編集可能なメモ欄・独自の動画再生コントロール・開発者向けメニュー・モデル一括管理APIは含んでいません。キャッシュ（`modules/yoshiaki_lora_info/cache/`、`.gitignore`対象）も完全に独立しており、実際のrgthree-comfyのキャッシュファイルとは一切共有しません。
 
