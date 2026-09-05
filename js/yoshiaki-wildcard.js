@@ -107,6 +107,9 @@ const wildcard_entry_path = (entry) => entry.slice(2, -2);
 // LoRA filenames from folder_paths.get_filename_list() may use OS-native
 // separators on Windows -- normalize to '/' before splitting.
 const lora_entry_path = (entry) => entry.replace(/\\/g, '/');
+// Display-only: just the filename, no folder prefix (node._lora_value itself
+// keeps the full path -- LoRA Add/Info need it to resolve the actual file).
+const lora_basename = (value) => lora_entry_path(value).split('/').pop();
 
 api.addEventListener("yoshiaki-node-feedback", ({ detail }) => {
 	const node = app.graph.getNodeById(Number(detail.node_id));
@@ -257,7 +260,7 @@ app.registerExtension({
 				set: (value) => {
 					if (value !== LORA_LABEL) node._lora_value = value;
 				},
-				get: () => node._lora_value
+				get: () => node._lora_value === LORA_LABEL ? LORA_LABEL : lora_basename(node._lora_value)
 			});
 
 			Object.defineProperty(lora_widget.options, "values", {
