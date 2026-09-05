@@ -155,11 +155,23 @@ def _build_info(file, file_hash, metadata, civitai):
             if version_id:
                 link += f"?modelVersionId={version_id}"
             info["civitaiLink"] = link
-        info["images"] = [
-            {"url": img.get("url"), "type": img.get("type") or "image"}
-            for img in (civitai.get("images") or [])
-            if img.get("url")
-        ]
+        images = []
+        for img in (civitai.get("images") or []):
+            if not img.get("url"):
+                continue
+            meta = img.get("meta") or {}
+            images.append({
+                "url": img.get("url"),
+                "type": img.get("type") or "image",
+                "seed": meta.get("seed"),
+                "steps": meta.get("steps"),
+                "cfg": meta.get("cfgScale"),
+                "sampler": meta.get("sampler"),
+                "model": meta.get("Model") or meta.get("model"),
+                "positive": meta.get("prompt"),
+                "negative": meta.get("negativePrompt"),
+            })
+        info["images"] = images
     elif civitai and "error" in civitai:
         info["civitaiError"] = civitai["error"]
 

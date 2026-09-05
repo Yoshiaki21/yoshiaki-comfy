@@ -84,22 +84,53 @@ function render_trained_words(info) {
 	});
 }
 
+function render_prompt_block(label, text) {
+	const copy_btn = el("button", {
+		text: "Copy",
+		onclick: async () => {
+			await navigator.clipboard.writeText(text);
+			const original = copy_btn.textContent;
+			copy_btn.textContent = "Copied!";
+			setTimeout(() => { copy_btn.textContent = original; }, 1200);
+		},
+	});
+	return el("div", {
+		className: "yoshiaki-lora-info-prompt",
+		children: [
+			el("div", { className: "yoshiaki-lora-info-prompt-header", children: [el("strong", { text: label }), copy_btn] }),
+			el("div", { className: "yoshiaki-lora-info-prompt-text", text }),
+		],
+	});
+}
+
 function render_images(info) {
 	const images = info.images || [];
+	if (!images.length) {
+		return el("div", { text: "(Civitai returned no sample images for this model version)" });
+	}
+
 	const gallery = el("div", { className: "yoshiaki-lora-info-gallery" });
 	for (const img of images) {
-		if (img.type === "video") {
-			const video = document.createElement("video");
-			video.src = img.url;
-			video.controls = true;
-			video.muted = true;
-			gallery.appendChild(video);
-		} else {
-			const image_el = document.createElement("img");
-			image_el.src = img.url;
-			image_el.loading = "lazy";
-			gallery.appendChild(image_el);
-		}
+		const media = img.type === "video"
+			? Object.assign(document.createElement("video"), { src: img.url, controls: true, muted: true })
+			: Object.assign(document.createElement("img"), { src: img.url, loading: "lazy" });
+
+		const meta_line = el("div", { className: "yoshiaki-lora-info-image-meta" });
+		const add_field = (label, value) => {
+			if (value == null || value === "") return;
+			meta_line.appendChild(el("span", { className: "yoshiaki-lora-info-image-meta-field", text: `${label}: ${value}` }));
+		};
+		add_field("seed", img.seed);
+		add_field("steps", img.steps);
+		add_field("cfg", img.cfg);
+		add_field("sampler", img.sampler);
+		add_field("model", img.model);
+
+		const card_children = [media, meta_line];
+		if (img.positive) card_children.push(render_prompt_block("Positive", img.positive));
+		if (img.negative) card_children.push(render_prompt_block("Negative", img.negative));
+
+		gallery.appendChild(el("div", { className: "yoshiaki-lora-info-image-card", children: card_children }));
 	}
 	return gallery;
 }
@@ -158,7 +189,7 @@ function render_content(container, lora_file, info) {
 	container.appendChild(el("h4", { text: "Trained Words" }));
 	container.appendChild(render_trained_words(info));
 
-	if ((info.images || []).length) {
+	if (info.hasCivitaiData) {
 		container.appendChild(el("h4", { text: "Sample Images" }));
 		container.appendChild(render_images(info));
 	}
@@ -205,7 +236,7 @@ function inject_css() {
 	document.head.appendChild(el("style", {
 		html: `
 .yoshiaki-lora-info-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; }
-.yoshiaki-lora-info-panel { background: #202020; color: #ddd; border-radius: 8px; width: min(700px, 90vw); max-height: 85vh; overflow-y: auto; padding: 16px; font-family: sans-serif; }
+.yoshiaki-lora-info-panel { background: #202020; color: #ddd; border-radius: 8px; width: min(560px, 90vw); max-height: 85vh; overflow-y: auto; padding: 16px; font-family: sans-serif; }
 .yoshiaki-lora-info-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .yoshiaki-lora-info-close { background: none; border: none; color: #ddd; font-size: 20px; cursor: pointer; line-height: 1; }
 .yoshiaki-lora-info-tags { margin-bottom: 8px; }
@@ -219,8 +250,15 @@ function inject_css() {
 .yoshiaki-lora-info-word.-selected { background: dodgerblue; color: #fff; }
 .yoshiaki-lora-info-words-actions { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
 .yoshiaki-lora-info-words-actions button { cursor: pointer; }
-.yoshiaki-lora-info-gallery { display: flex; flex-wrap: wrap; gap: 8px; }
-.yoshiaki-lora-info-gallery img, .yoshiaki-lora-info-gallery video { max-width: 200px; max-height: 200px; border-radius: 4px; }
+.yoshiaki-lora-info-gallery { display: flex; flex-direction: column; gap: 16px; }
+.yoshiaki-lora-info-image-card { border: 1px solid #333; border-radius: 8px; padding: 8px; }
+.yoshiaki-lora-info-image-card img, .yoshiaki-lora-info-image-card video { display: block; width: 100%; max-height: 420px; object-fit: contain; border-radius: 4px; background: #000; margin-bottom: 8px; }
+.yoshiaki-lora-info-image-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.yoshiaki-lora-info-image-meta-field { background: #333; border-radius: 4px; padding: 2px 8px; font-size: 11px; color: #bbb; }
+.yoshiaki-lora-info-prompt { margin-bottom: 6px; }
+.yoshiaki-lora-info-prompt-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 12px; }
+.yoshiaki-lora-info-prompt-header button { cursor: pointer; }
+.yoshiaki-lora-info-prompt-text { background: #181818; border: 1px solid #333; border-radius: 4px; padding: 6px 8px; font-size: 12px; max-height: 120px; overflow-y: auto; white-space: pre-wrap; }
 `,
 	}));
 }

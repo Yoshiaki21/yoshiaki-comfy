@@ -38,6 +38,22 @@
 
 ---
 
+## タスク: LoRA Infoダイアログにサンプル画像のプロンプト表示・コピー機能を追加
+
+- **完了日**: 2026-09-04
+- **動作確認**: ✅済み（実際のCivitai API応答構造を確認した上で、`_build_info()`が`meta.seed`/`meta.steps`/`meta.cfgScale`/`meta.sampler`/`meta.Model`/`meta.prompt`/`meta.negativePrompt`を正しく抽出できることをスタンドアロンテストで確認。画像がまだ無いフォールバック表示も含む。ComfyUI実機での見た目・コピー動作の確認はユーザー側で実施予定）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_lora_info/lora_info.py` : `_build_info()`の画像情報を、`url`/`type`だけでなく`seed`/`steps`/`cfg`/`sampler`/`model`/`positive`/`negative`（`img.meta`から抽出）まで含むように拡張
+  - `js/yoshiaki-lora-info.js` : `render_images()`を全面改修。1枚ずつ縦に並ぶカード形式にし、画像の下にseed等のメタ情報タグ、Positive/Negativeプロンプト（それぞれ個別の「Copy」ボタン付き）を表示するようにした。Civitaiのデータ取得済みでも画像が0件の場合は「(Civitai returned no sample images for this model version)」と明示表示。パネル幅・CSSも画像カード表示に合わせて調整
+- **変更内容**:
+  - ユーザーから、実装したダイアログでサンプル画像が表示されないとの報告があり、あわせて添付されたCivitai本家ページのスクリーンショット（画像＋seed/steps/cfg/sampler/model＋Positive/Negativeプロンプト＋コピー機能）と同等の表示を追加してほしいとの要望があった
+  - 実際のCivitai APIレスポンス（`/api/v1/model-versions/{id}`）を確認し、各画像の`meta`フィールドに`prompt`/`negativePrompt`/`seed`/`steps`/`cfgScale`/`sampler`/`Model`が含まれることを確認した上で、これらを`_build_info()`で抽出するよう拡張
+  - 画像そのものの表示（`url`/`type`の取得）は元々のコードでも動作するはずだったため、「表示されない」という報告に対しては、Civitai側がそのモデルバージョンに対して画像を0件返している可能性（NSFW設定等の影響も含む）を考慮し、その場合に理由が分かるようフォールバック文言を追加した
+- **備考**: 修正後も画像が表示されない場合は、Civitai側の応答で本当に画像が0件なのか、別の原因（読み込みエラー等）なのかの切り分けが必要なため、ユーザーに実機確認を依頼
+
+---
+
 ## タスク: LoRA Infoダイアログのトリガーワード欄が本家より長く見える問題を修正
 
 - **完了日**: 2026-09-04
