@@ -102,21 +102,28 @@ def find_wildcard_file(key):
 
 
 def load_txt_wildcard(file_path):
+    # Try UTF-8 first (the common case, including any non-ASCII wildcard
+    # content) and only fall back to ISO-8859-1 for files that aren't valid
+    # UTF-8. ISO-8859-1 decodes any byte sequence without error, so it must
+    # come second -- trying it first (as this used to) meant the UTF-8
+    # fallback below could never actually trigger, silently mojibake-ing any
+    # non-ASCII content instead of reading it correctly.
     try:
-        with open(file_path, "r", encoding="ISO-8859-1") as f:
+        with open(file_path, "r", encoding="UTF-8") as f:
             lines = f.read().splitlines()
     except UnicodeDecodeError:
-        with open(file_path, "r", encoding="UTF-8", errors="ignore") as f:
+        with open(file_path, "r", encoding="ISO-8859-1") as f:
             lines = f.read().splitlines()
     return [x for x in lines if x.strip() and not x.strip().startswith("#")]
 
 
 def _read_yaml(file_path):
+    # See load_txt_wildcard() above for why UTF-8 must be tried first.
     try:
-        with open(file_path, "r", encoding="ISO-8859-1") as f:
+        with open(file_path, "r", encoding="UTF-8") as f:
             return yaml.load(f, Loader=yaml.FullLoader)
     except (yaml.reader.ReaderError, UnicodeDecodeError):
-        with open(file_path, "r", encoding="UTF-8", errors="ignore") as f:
+        with open(file_path, "r", encoding="ISO-8859-1") as f:
             return yaml.load(f, Loader=yaml.FullLoader)
 
 
