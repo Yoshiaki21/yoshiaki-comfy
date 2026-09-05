@@ -24,6 +24,28 @@
 
 ---
 
+## タスク: YoshiakiLLMCaptionGenerator の model コンボを host/port変更時に動的更新（JS＋サーバールート方式）
+
+- **完了日**: 2026-09-05
+- **動作確認**: ⬜未確認（コード修正のみ。ユーザー側で実機確認予定）
+- **新規ファイル**:
+  - `modules/yoshiaki_llm/server.py` : `/yoshiaki/llm/models`（POST）を新設。リクエストの`host`/`port`/`api_key`で既存の`fetch_lemonade_models()`を呼び、モデル一覧（取得失敗時は`FALLBACK_MODEL_LABEL`）をJSONで返す
+  - `js/yoshiaki-llm.js` : `YoshiakiLLMCaptionGenerator`の`lemonade_host`/`lemonade_port`/`lemonade_api_key`ウィジェットの`.callback`をラップし、値確定のたびに上記ルートを叩いて`model`コンボの`options.values`と選択値を更新。`model`直後に手動再取得用の「Refresh Models」ボタンを追加。ワークフロー読み込み直後（`nodeCreated`の次tick）にも自動で一度実行し、保存済みworkflowが持つhost/portと食い違ったままにならないようにした
+- **修正ファイル**:
+  - `__init__.py` : `yoshiaki_llm.server`をimportしてルートを登録
+  - `CLAUDE.md` : `Yoshiaki-LLMCaptionGenerator`の概要・備考に追記
+- **原因（調査結果）**:
+  - `model`コンボは`INPUT_TYPES`（classmethod）評価時にのみ`fetch_lemonade_models()`を呼んでいたが、そこで使うhost/portは個別ノードのウィジェット値ではなく常に固定の`DEFAULT_LEMONADE_HOST`/`DEFAULT_LEMONADE_PORT`定数だった。加えて`INPUT_TYPES`自体もサーバー起動時／ブラウザF5リロード時にしか評価されない仕組みで、ノード上でhost/portを変更しても`model`へは一切反映され得ない設計だった（指示書にも「動的Refreshボタンは今回スコープ外」と明記されていた既知の制約）
+- **変更内容**:
+  - サーバー側は新規`server.py`に切り出し、`llm_caption_node.py`が持つ`fetch_lemonade_models()`をそのまま再利用（モデル取得ロジックの重複を避けた）。`api_key`はcrential寄りの値のためGETクエリではなくPOSTボディで送るようにした
+  - フロント側は`js/yoshiaki-wildcard.js`のフォルダ絞り込み実装と同様のパターン（`node.widgets.find`でウィジェット取得、`options.values`を差し替え）を踏襲。host/portは既存の`.callback`が無いためラップしても副作用なし
+  - text/int系ウィジェットの`.callback`はlitegraphが値確定時（textはblur/Enter、intは変更確定時）にしか呼ばないため、入力中に毎キー打鍵でリクエストが飛ぶ心配はない
+- **備考**:
+  - 「Refresh Models」ボタンを`model`の直後に追加したため、既存の保存済み`YoshiakiLLMCaptionGenerator`ワークフローで`enable_thinking`以降のウィジェット位置が1つずれる可能性がある（`YoshiakiWildcardEncode`側で既に何度も発生している既知のパターンと同種の影響）
+  - サーバー側の`fetch_lemonade_models()`はタイムアウト3秒・例外を握りつぶして空リストを返す既存の安全設計をそのまま利用しているため、このルート自体がComfyUIサーバーを巻き込んでハングすることはない
+
+---
+
 ## タスク: 「モデルファイルが不足しています」警告を、表示を変えずに解決（本体ウィジェット非表示化方式）
 
 - **完了日**: 2026-09-05

@@ -35,6 +35,7 @@ from yoshiaki_llm.llm_caption_node import (  # noqa: E402
     NODE_CLASS_MAPPINGS as _LLM_NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as _LLM_NODE_DISPLAY_NAME_MAPPINGS,
 )
+import yoshiaki_llm.server  # noqa: F401, E402  (registers the LLM model-list refresh route)
 from yoshiaki_loracaption.lora_caption import (  # noqa: E402
     NODE_CLASS_MAPPINGS as _LORACAPTION_NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as _LORACAPTION_NODE_DISPLAY_NAME_MAPPINGS,
