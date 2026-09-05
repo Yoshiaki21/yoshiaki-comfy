@@ -99,7 +99,8 @@
   - キャッシュは`modules/yoshiaki_lora_info/cache/`（ハッシュ単位、`.gitignore`対象）に完全に独立して保存。本家rgthree-comfyの`<LoRA名>.rgthree-info.json`サイドカーファイルや専用userdataディレクトリには一切触れない（同じ環境に両方入っていても干渉しない）
   - 含めなかったもの: 編集可能なメモ欄、独自の動画再生コントロール（ブラウザ標準の`<video controls>`で代替）、開発者向けメニュー、モデル一覧取得/削除/保存等の管理系API
   - ユーザー追加要望として「全トリガーワードを一括コピー」ボタンを追加（本家rgthree-comfyには無い機能）
-  - JS側で「Select to add LoRA」の直後にボタンウィジェットを挿入するため、既存の保存済み`YoshiakiWildcardEncode`ワークフローで`seed`の位置がさらに1つずれる可能性がある（Wildcard Folder・LoRA Folder追加時と同様の影響。今回の「LoRA Add」追加で4回目の位置ずれ）
+  - JS側で「Select to add LoRA」の直後にボタンウィジェットを挿入するため、既存の保存済み`YoshiakiWildcardEncode`ワークフローで`seed`の位置がさらに1つずれる可能性がある（Wildcard Folder・LoRA Folder追加時と同様の影響。「LoRA Add」追加で4回目、読み取り専用「LoRA Selected」表示欄追加で5回目の位置ずれ）
+  - `Select to add LoRA`は、ComfyUIの「モデルファイル不足」チェック対象となる本体ウィジェット（フォルダ込みフルパスを保持、非表示化）と、ユーザーが実際に操作する表示用ウィジェット（ファイル名のみ表示、名前は末尾スペース区切りで衝突回避）の2つに分離して実装（`js/yoshiaki-wildcard.js`）。見た目上は行が増えず、警告も出ない
   - 配布予定なし、個人利用限定
 
 ---

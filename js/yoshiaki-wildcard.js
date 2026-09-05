@@ -102,6 +102,14 @@ function move_widget_above(node, widget, before_widget) {
 	node.setSize(node.computeSize());
 }
 
+// Same, but directly below `after_widget` instead.
+function move_widget_after(node, widget, after_widget) {
+	const insert_idx = node.widgets.indexOf(after_widget) + 1;
+	node.widgets.pop();
+	node.widgets.splice(insert_idx, 0, widget);
+	node.setSize(node.computeSize());
+}
+
 // entry looks like "__folder/sub/name__" (or "__name__" with no folder).
 const wildcard_entry_path = (entry) => entry.slice(2, -2);
 // LoRA filenames from folder_paths.get_filename_list() may use OS-native
@@ -263,25 +271,55 @@ app.registerExtension({
 		if (has_lora) {
 			node._lora_value = LORA_LABEL;
 
-			// The combo only records which LoRA is selected (shown in place of
-			// the placeholder) -- it no longer inserts anything into
-			// wildcard_text by itself. Use the "LoRA Add" button (see
-			// js/yoshiaki-lora-info.js, added right below "LoRA Info") to
-			// actually commit it to the prompt, so browsing/inspecting a LoRA
-			// via "LoRA Info" doesn't force it into the text.
-			Object.defineProperty(lora_widget, "value", {
+			// ComfyUI's "missing model" check finds its target by widget NAME
+			// ("Select to add LoRA", exactly as Python's INPUT_TYPES declares
+			// it) and checks that widget's live value against the real
+			// folder_paths lora list -- so THAT specific widget must always
+			// hold a real, folder-prefixed path and can never show a
+			// friendly/partial label. We hide it (zero height -- never drawn
+			// or clickable) and drive its value programmatically, keeping its
+			// name unchanged so the check keeps finding it.
+			//
+			// The widget the user actually sees and clicks is the new
+			// lora_picker_widget below, inserted in its place. It shows just
+			// the filename and isn't tied to any Python-declared model-type
+			// input, so ComfyUI has no reason to validate it.
+			const real_lora_widget = lora_widget;
+			real_lora_widget.computeSize = () => [0, -4];
+			real_lora_widget.value = LORA_LABEL;
+			real_lora_widget.serializeValue = () => LORA_LABEL;
+
+			// Trailing space: a name distinct from real_lora_widget's
+			// ("Select to add LoRA", already taken) while still drawing
+			// identically. `.label` is also set in case this LiteGraph
+			// version prefers it over `.name` for the widget's own text.
+			const lora_picker_widget = node.addWidget(
+				'combo',
+				'Select to add LoRA ',
+				LORA_LABEL,
+				() => {},
+				{ values: [] }
+			);
+			lora_picker_widget.label = 'Select to add LoRA';
+
+			Object.defineProperty(lora_picker_widget, "value", {
 				set: (value) => {
-					if (value !== LORA_LABEL) node._lora_value = resolve_lora_value(value, lora_list);
+					if (value !== LORA_LABEL) {
+						node._lora_value = resolve_lora_value(value, lora_list);
+						real_lora_widget.value = node._lora_value;
+					}
 				},
 				get: () => node._lora_value === LORA_LABEL ? LORA_LABEL : lora_basename(node._lora_value)
 			});
 
-			Object.defineProperty(lora_widget.options, "values", {
+			Object.defineProperty(lora_picker_widget.options, "values", {
 				set: () => {},
 				get: () => items_in_folder(lora_list, lora_entry_path, node._lora_folder)
 			});
 
-			lora_widget.serializeValue = () => LORA_LABEL;
+			lora_picker_widget.serializeValue = () => LORA_LABEL;
+
+			move_widget_above(node, lora_picker_widget, real_lora_widget);
 		}
 
 		wildcard_text_widget.inputEl.placeholder = "Wildcard Prompt (User input)";
