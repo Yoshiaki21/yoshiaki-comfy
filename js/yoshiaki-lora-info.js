@@ -135,15 +135,9 @@ function render_images(info) {
 	return gallery;
 }
 
-function render_civitai_cell(container, lora_file, info) {
-	if (info.civitaiLink) {
-		return el("a", { text: "View on Civitai", href: info.civitaiLink, target: "_blank" });
-	}
-	if (info.civitaiError) {
-		return el("span", { text: info.civitaiError });
-	}
+function make_fetch_civitai_button(container, lora_file, label) {
 	const fetch_btn = el("button", {
-		text: "Fetch info from Civitai",
+		text: label,
 		onclick: async () => {
 			fetch_btn.disabled = true;
 			fetch_btn.textContent = "Fetching...";
@@ -157,6 +151,21 @@ function render_civitai_cell(container, lora_file, info) {
 		},
 	});
 	return fetch_btn;
+}
+
+function render_civitai_cell(container, lora_file, info) {
+	if (info.civitaiLink) {
+		return el("a", { text: "View on Civitai", href: info.civitaiLink, target: "_blank" });
+	}
+	if (info.civitaiError) {
+		return el("span", {
+			children: [
+				el("span", { text: `${info.civitaiError} ` }),
+				make_fetch_civitai_button(container, lora_file, "Retry"),
+			],
+		});
+	}
+	return make_fetch_civitai_button(container, lora_file, "Fetch info from Civitai");
 }
 
 function render_content(container, lora_file, info) {
@@ -222,7 +231,17 @@ async function open_lora_info_dialog(lora_file) {
 
 	try {
 		const res = await api.fetchApi(`/yoshiaki/lora_info?file=${encodeURIComponent(lora_file)}`);
-		const info = await res.json();
+		let info = await res.json();
+
+		// First time this LoRA's hash has ever been looked at (no cached Civitai
+		// attempt yet, success or failure) -- fetch it now instead of making the
+		// user click "Fetch info from Civitai" on every never-before-seen LoRA.
+		if (!info.error && !info.hasCivitaiData && !info.civitaiError) {
+			content.textContent = "Loading Civitai info...";
+			const refreshed_res = await api.fetchApi(`/yoshiaki/lora_info/refresh?file=${encodeURIComponent(lora_file)}`);
+			info = await refreshed_res.json();
+		}
+
 		render_content(content, lora_file, info);
 	} catch (error) {
 		content.textContent = `Failed to load LoRA info: ${error}`;
