@@ -119,19 +119,6 @@ const lora_entry_path = (entry) => entry.replace(/\\/g, '/');
 // keeps the full path -- LoRA Add/Info need it to resolve the actual file).
 const lora_basename = (value) => lora_entry_path(value).split('/').pop();
 
-// Accepts either a full folder-prefixed path (a live selection from the
-// combo) or a bare filename (what ComfyUI restores into `.value` on reload,
-// since that's what the basename-only display leaves in widgets_values) and
-// always returns the full path. Without this, a reloaded workflow's
-// node._lora_value would be left folder-less, which both breaks LoRA
-// Add/Info and makes ComfyUI's "missing model" check fail to match it
-// against the real (folder-prefixed) lora list.
-function resolve_lora_value(value, lora_list) {
-	if (lora_list.includes(value)) return value;
-	const match = lora_list.find((full) => lora_basename(full) === value);
-	return match || value;
-}
-
 api.addEventListener("yoshiaki-node-feedback", ({ detail }) => {
 	const node = app.graph.getNodeById(Number(detail.node_id));
 	if (!node) return;
@@ -271,53 +258,81 @@ app.registerExtension({
 		if (has_lora) {
 			node._lora_value = LORA_LABEL;
 
-			// ComfyUI's "missing model" check finds its target by widget NAME
-			// ("Select to add LoRA", exactly as Python's INPUT_TYPES declares
-			// it) and checks that widget's live value against the real
-			// folder_paths lora list -- so THAT specific widget must always
-			// hold a real, folder-prefixed path and can never show a
-			// friendly/partial label. We hide it (zero height -- never drawn
-			// or clickable) and drive its value programmatically, keeping its
-			// name unchanged so the check keeps finding it.
-			//
-			// The widget the user actually sees and clicks is the new
-			// lora_picker_widget below, inserted in its place. It shows just
-			// the filename and isn't tied to any Python-declared model-type
-			// input, so ComfyUI has no reason to validate it.
+			// ComfyUI's "missing model" scan flagged this LoRA as missing even
+			// after the previous attempt (hidden real combo + a second,
+			// differently-named visible combo showing just the filename) --
+			// it was reading the VISIBLE filename-only combo's value, not the
+			// hidden one that always held the real, folder-prefixed path.
+			// Exactly how it picks which widget to check is undocumented, but
+			// with two `combo`-type widgets both displaying "Select to add
+			// LoRA" it was clearly not going by the internal (non-display)
+			// `.name` alone. The reliable fix is to make sure only ONE
+			// widget on this node is ever combo-typed and named/labeled
+			// "Select to add LoRA" -- the real one, which is hidden and
+			// always holds the real path.
 			const real_lora_widget = lora_widget;
 			real_lora_widget.computeSize = () => [0, -4];
 			real_lora_widget.value = LORA_LABEL;
 			real_lora_widget.serializeValue = () => LORA_LABEL;
 
-			// Trailing space: a name distinct from real_lora_widget's
-			// ("Select to add LoRA", already taken) while still drawing
-			// identically. `.label` is also set in case this LiteGraph
-			// version prefers it over `.name` for the widget's own text.
+			// The widget the user actually sees and clicks. Deliberately NOT
+			// a `combo` widget -- a `button` with a hand-rolled draw (styled
+			// to match the combo widgets around it) and a LiteGraph.ContextMenu
+			// popup on click, instead of relying on litegraph's native combo
+			// dropdown/search-overlay. Its internal name has nothing to do
+			// with "Select to add LoRA" so it can't be confused with
+			// real_lora_widget by anything matching on widget name/label/type.
 			const lora_picker_widget = node.addWidget(
-				'combo',
-				'Select to add LoRA ',
-				LORA_LABEL,
-				() => {},
-				{ values: [] }
+				'button',
+				'lora_picker',
+				null,
+				(...callback_args) => {
+					// litegraph's exact button-callback argument order varies by
+					// version -- pick whichever argument looks like a DOM event
+					// (for positioning the popup near the click) instead of
+					// depending on a fixed position.
+					const event = callback_args.find((a) => a && typeof a === 'object' && 'clientX' in a) || window.event;
+					const options = items_in_folder(lora_list, lora_entry_path, node._lora_folder);
+					if (!options.length) return;
+					const menu_items = options.map((full) => lora_basename(full));
+					new LiteGraph.ContextMenu(menu_items, {
+						event,
+						callback: (label) => {
+							const full = options.find((full_path) => lora_basename(full_path) === label);
+							if (!full) return;
+							node._lora_value = full;
+							real_lora_widget.value = full;
+						},
+					});
+				}
 			);
-			lora_picker_widget.label = 'Select to add LoRA';
-
-			Object.defineProperty(lora_picker_widget, "value", {
-				set: (value) => {
-					if (value !== LORA_LABEL) {
-						node._lora_value = resolve_lora_value(value, lora_list);
-						real_lora_widget.value = node._lora_value;
-					}
-				},
-				get: () => node._lora_value === LORA_LABEL ? LORA_LABEL : lora_basename(node._lora_value)
-			});
-
-			Object.defineProperty(lora_picker_widget.options, "values", {
-				set: () => {},
-				get: () => items_in_folder(lora_list, lora_entry_path, node._lora_folder)
-			});
-
 			lora_picker_widget.serializeValue = () => LORA_LABEL;
+			lora_picker_widget.draw = function (ctx, _node, widget_width, y, H) {
+				const margin = 15;
+				ctx.textAlign = "left";
+				ctx.strokeStyle = LiteGraph.WIDGET_OUTLINE_COLOR;
+				ctx.fillStyle = LiteGraph.WIDGET_BGCOLOR;
+				ctx.beginPath();
+				ctx.roundRect(margin, y, widget_width - margin * 2, H, H * 0.5);
+				ctx.fill();
+				ctx.stroke();
+				ctx.fillStyle = LiteGraph.WIDGET_TEXT_COLOR;
+				ctx.beginPath();
+				ctx.moveTo(margin + 16, y + 5);
+				ctx.lineTo(margin + 6, y + H * 0.5);
+				ctx.lineTo(margin + 16, y + H - 5);
+				ctx.fill();
+				ctx.beginPath();
+				ctx.moveTo(widget_width - margin - 16, y + 5);
+				ctx.lineTo(widget_width - margin - 6, y + H * 0.5);
+				ctx.lineTo(widget_width - margin - 16, y + H - 5);
+				ctx.fill();
+				ctx.textAlign = "left";
+				ctx.fillText("Select to add LoRA", margin * 2 + 5, y + H * 0.7);
+				const display = node._lora_value === LORA_LABEL ? LORA_LABEL : lora_basename(node._lora_value);
+				ctx.textAlign = "right";
+				ctx.fillText(String(display).substr(0, 30), widget_width - margin * 2 - 20, y + H * 0.7);
+			};
 
 			move_widget_above(node, lora_picker_widget, real_lora_widget);
 		}
