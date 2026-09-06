@@ -24,6 +24,49 @@
 
 ---
 
+## タスク: 日本語プロンプト→英語プロンプト変換ノード（YoshiakiPromptTranslator）を新設、共通ロジックをllm_common.pyへ切り出し
+
+- **完了日**: 2026-09-06
+- **動作確認**: ⬜未確認（Pythonレベルの単体テスト・INPUT_TYPES/フォルダ分離/失敗パス確認は実施済み。ComfyUI実機でのノード表示・実際のLemonade Server翻訳結果の目視確認はユーザー側で実施予定）
+- **新規ファイル**:
+  - `modules/yoshiaki_llm/llm_common.py` : 画像非依存の共通ロジック（Lemonade Server呼び出し、リトライ／タイムアウト分類、ログ書き込み、システムプロンプトのメタデータ判定等）を`llm_caption_node.py`から移動。`output_mode`の許容値を`CAPTION_OUTPUT_MODES`/`TRANSLATION_OUTPUT_MODES`に分割し、`list_system_prompt_files`/`read_system_prompt_file`/`parse_system_prompt_file`は呼び出し側がフォルダパスを渡す形に変更。新規`ensure_log_dir_at(subdir_name)`（`logs_translate/`分離用）も追加
+  - `modules/yoshiaki_llm/llm_prompt_translator_node.py` : 新ノード`YoshiakiPromptTranslator`本体。`fixed_tags`＋`japanese_prompt`の2入力、`combined_prompt`＋`translated_prompt`の2出力
+  - `modules/yoshiaki_llm/system_prompts_translate/` : 翻訳ノード用システムプロンプト置き場（`.gitkeep`のみ配置。内容そのものは別タスクで用意予定）
+- **修正ファイル**:
+  - `modules/yoshiaki_llm/llm_caption_node.py` : 画像・PART分割処理に依存しないロジックを`llm_common.py`からimportする形に変更（ロジック自体は変更なし。`list_system_prompt_files()`→`list_system_prompt_files(SYSTEM_PROMPTS_DIR)`、`parse_system_prompt_file(system_prompt_file)`→`parse_system_prompt_file(system_prompt_file, CAPTION_OUTPUT_MODES, SYSTEM_PROMPTS_DIR)`の2箇所のみシグネチャ変更に伴う呼び出し側修正）
+  - `__init__.py` : `YoshiakiPromptTranslator`の`NODE_CLASS_MAPPINGS`/`NODE_DISPLAY_NAME_MAPPINGS`を追加
+  - `js/yoshiaki-llm.js` : 「Refresh Models」ボタン・host/port変更時の自動再取得の対象ノードを`YoshiakiLLMCaptionGenerator`単体からハードコード配列`TARGET_NODE_CLASSES`（`YoshiakiLLMCaptionGenerator`, `YoshiakiPromptTranslator`）に変更し、新ノードにも同機能を効かせた
+  - `.gitignore` : `modules/yoshiaki_llm/logs_translate/`（翻訳ノードの実行ログ、キャプションノードの`logs/`とは別フォルダ）を追加
+  - `CLAUDE.md` : `Yoshiaki-LLMCaptionGenerator`の備考にリファクタ内容を追記、`Yoshiaki-PromptTranslator`の説明を新規追加
+- **変更内容**:
+  - `llm_caption_node.py`の`generate()`は「画像バッチが処理の軸」という構造が骨格に食い込んでおり（`INPUT_IS_LIST`、`image`必須、`tags_per_image`との対応付け等）、画像なし・単一テキストin/outの翻訳処理を条件分岐で埋め込むとリグレッションのリスクが上がると判断し、別ノードとして新設する方針を採用
+  - `CaptionParseError`・`fetch_lemonade_models`・`request_chat_completion`・`write_log`等、画像と無関係な汎用ロジックのみを`llm_common.py`へ移動。画像専用処理（`iter_images`, `tensor_to_pil`, `build_user_text`, `build_messages`, `split_both_parts`等）と`YoshiakiLLMCaptionGenerator`クラス本体は`llm_caption_node.py`に残置
+  - `system_prompts/`（キャプション用）と`system_prompts_translate/`（翻訳用）を物理的に別フォルダにし、`list_system_prompt_files`/`parse_system_prompt_file`にフォルダパス・許可する`output_mode`を明示的に渡す設計にしたことで、互いのコンボボックスにファイルが混在しない・`output_mode`の値を間違えて逆フォルダに置いても即座に`INVALID_PROMPT_FILE`扱いで安全に失敗することをPythonレベルで確認
+  - `server.py`は`from . import llm_caption_node`経由で`llm_caption_node.fetch_lemonade_models`等を直接参照しているが、`llm_caption_node.py`側で`from .llm_common import (...)`により名前をそのまま再エクスポートする形にしたため、`server.py`は無変更で動作することを実機インポートで確認
+- **自己レビュー（指示書8章チェックリスト）**:
+  - ✅ `llm_caption_node.py`のimportを`llm_common`経由に差し替えた後、既存の`YoshiakiLLMCaptionGenerator`の`generate()`/`IS_CHANGED()`のシグネチャ・`build_user_text`の出力（人物用・衣装用いずれも）が変更前と完全一致することを確認
+  - ✅ `server.py`を一切変更せずに`llm_caption_node.fetch_lemonade_models`/`llm_caption_node.DEFAULT_LEMONADE_HOST`/`llm_caption_node.DEFAULT_LEMONADE_PORT`/`llm_caption_node.FALLBACK_MODEL_LABEL`が解決できることを実行確認
+  - ✅ `INPUT_TYPES`のrequired/optionalの構造・`generate()`/`IS_CHANGED()`の引数並びが変更前と同一（`inspect.signature`で確認）なので、既存の保存済みワークフローJSONの`widgets_values`はズレない
+  - ✅ `YoshiakiLLMCaptionGenerator`の`system_prompt_file`コンボに`system_prompts_translate/`内のファイルが表示されないことを実行確認（フォルダ分離）
+  - ✅ `YoshiakiPromptTranslator`の`system_prompt_file`コンボには`system_prompts_translate/`内のファイルのみが表示され、`system_prompts/`の内容は表示されないことを実行確認
+  - ✅ `prompt_translation`以外の`output_mode`（`both`）を持つファイルを新ノードで選ぶと即座に`INVALID_PROMPT_FILE`扱いでスキップされ（`combined_prompt`/`translated_prompt`とも空文字）ることを実行確認
+  - ✅ `caption_training_both.txt`のようなキャプション用ファイルを誤って新ノードで選んだ場合も同様に安全側でスキップされることを確認（物理的に別フォルダのため「ファイルが存在しない」扱いになり、より安全な形で失敗）
+  - ✅ `fixed_tags`に値、`japanese_prompt`が空欄のとき、LLMを呼ばず`combined_prompt`＝`fixed_tags`（トリム済み）、`translated_prompt`＝空文字になることを実行確認
+  - ✅ `fixed_tags`が空欄、`japanese_prompt`に値のとき、`combined_prompt`＝`translated_prompt`と一致することを`combine_final_prompt`の単体テストで確認
+  - ✅ `fixed_tags`・`japanese_prompt`の両方に値があるとき、`combined_prompt`が`"{fixed_tags}, {translated_prompt}"`の形で結合される（二重カンマにならない）ことを単体テストで確認
+  - ✅ `system_prompt_file`が不正なとき、`fixed_tags`の内容に関わらず`combined_prompt`・`translated_prompt`ともに空文字になることを実行確認
+  - ✅ `INPUT_TYPES`のrequired辞書順で`fixed_tags`が`japanese_prompt`より上に来ることを確認（UI表示順はdictの定義順に対応）
+- **指示書からの調整点（実装前にファイルを読んで反映）**:
+  - 指示書3章のimportリストに無かったが実際には必要だった`describe_params_source`・`ERROR_LOG_FILENAME`を`llm_caption_node.py`のimportに追加（`generate()`内で直接参照しているため）
+  - 指示書4.3章の翻訳ノード側コードで`format_response_timing`が importされているにもかかわらず未使用（`RESPONSE`ログに経過時間が乗らない）だったため、キャプションノードと同じパターン（`request_started`/`elapsed`を計測して`format_response_timing`に渡す）で配線した
+  - 指示書4.3章でimportされていたが実際には未使用だった`REASON_INVALID_PROMPT_FILE`（訳: `translate()`は`INVALID_PROMPT_FILE_REASON`のみ使用）、および未使用の`import re`は削除
+- **備考**:
+  - `prompt_translation`用システムプロンプトファイルの内容そのもの（Anima版・Krea2版・Qwen-Image-Edit版）は指示書の通りスコープ外。`system_prompts_translate/`フォルダには`.gitkeep`のみ配置
+  - `js/yoshiaki-llm.js`の「Refresh Models」ボタンは`model`ウィジェットの直後に挿入されるため、新ノードでも`enable_thinking`以降のウィジェット位置は最初から1つずれた状態になる（新規ノードのため既存ワークフローへの影響はない）
+  - 配布予定なし、個人利用限定
+
+---
+
 ## タスク: caption_training_costume.txt が人物名（キャラクター名・シリーズ名）をタグ/自然文に出力してしまう不具合を修正
 
 - **完了日**: 2026-09-06

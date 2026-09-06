@@ -1,10 +1,11 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
-// YoshiakiLLMCaptionGenerator's `model` combo is populated once by
-// `INPUT_TYPES` (server start / browser reload), and even then only from
-// the hardcoded DEFAULT_LEMONADE_HOST/DEFAULT_LEMONADE_PORT in
-// modules/yoshiaki_llm/llm_caption_node.py -- `INPUT_TYPES` is a
+// YoshiakiLLMCaptionGenerator's (and YoshiakiPromptTranslator's) `model`
+// combo is populated once by `INPUT_TYPES` (server start / browser reload),
+// and even then only from the hardcoded
+// DEFAULT_LEMONADE_HOST/DEFAULT_LEMONADE_PORT in
+// modules/yoshiaki_llm/llm_common.py -- `INPUT_TYPES` is a
 // classmethod with no access to any specific node's current
 // lemonade_host/lemonade_port widget values. So editing those widgets (or
 // loading a saved workflow that points at a different server) could never
@@ -13,6 +14,7 @@ import { api } from "../../scripts/api.js";
 // has, and swaps it into the combo in place.
 
 const FALLBACK_MODEL_LABEL = "(Lemonade Server unavailable - check host/port)";
+const TARGET_NODE_CLASSES = ["YoshiakiLLMCaptionGenerator", "YoshiakiPromptTranslator"];
 
 async function fetch_models(host, port, api_key) {
 	const res = await api.fetchApi("/yoshiaki/llm/models", {
@@ -34,7 +36,7 @@ app.registerExtension({
 	name: "yoshiaki-comfy.llm",
 
 	nodeCreated(node) {
-		if (node.comfyClass !== "YoshiakiLLMCaptionGenerator") return;
+		if (!TARGET_NODE_CLASSES.includes(node.comfyClass)) return;
 
 		const host_widget = node.widgets.find((w) => w.name === "lemonade_host");
 		const port_widget = node.widgets.find((w) => w.name === "lemonade_port");

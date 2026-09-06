@@ -50,6 +50,28 @@
   - 他のComfyUIカスタムノードパックへのコード依存なし（`tags`入力はワークフロー上でWD14Tagger等を繋ぐ運用であり、コード上のimport依存ではない）
   - 「Refresh Models」ボタン追加により、既存の保存済み`YoshiakiLLMCaptionGenerator`ワークフローで`model`より後ろのウィジェット（`enable_thinking`以降）の位置が1つずれる可能性がある（Wildcard Folder等追加時と同種の影響）
   - 統合元リポジトリの開発履歴は[docs/yoshiaki/tasks_done.LLM.md](docs/yoshiaki/tasks_done.LLM.md)、詳細仕様書は[docs/yoshiaki/LLM_Caption_Node_指示書.md](docs/yoshiaki/LLM_Caption_Node_指示書.md)として本リポジトリに保存（本体の`docs/yoshiaki/tasks_done.md`には統合せず、別ファイルとして参照用に保管）
+  - 2026-09-06、Lemonade Server呼び出し・リトライ／タイムアウト分類・ログ書き込み・システムプロンプトのメタデータ判定など画像非依存の共通ロジックを`modules/yoshiaki_llm/llm_common.py`に切り出した（`YoshiakiPromptTranslator`との共有のため）。本ノード固有のロジック（画像前処理・PART1/PART2分割・trigger_word処理等）は`llm_caption_node.py`にそのまま残っており、本ノードの入出力・挙動に変更はない
+  - 配布予定なし、個人利用限定
+
+---
+
+### Yoshiaki-PromptTranslator
+
+- **実装日**: 2026-09-06
+- **カスタムノードの機能の概要**:
+  - 日本語プロンプトをAnima等の画像生成モデル向け英語プロンプトに変換する
+  - `fixed_tags`（翻訳不要の品質タグ・score系・人数/構図タグ等、そのまま先頭に使われる）と`japanese_prompt`（翻訳対象の日本語本文）を別入力にして、日本語部分だけをLLMに渡す
+  - `system_prompts_translate/`フォルダ内の`.txt`ファイル（1行目`<!-- output_mode: prompt_translation -->`）でプロンプトを切り替え可能。**変換先モデル（Anima／Krea2／Qwen-Image-Editなど）ごとに別ファイルを用意し、ここで切り替える想定**（ノードのコード変更は不要）
+  - 出力は`combined_prompt`（`fixed_tags`＋翻訳結果を結合した完成形）と`translated_prompt`（翻訳結果のみ、デバッグ用）の2つ
+  - `japanese_prompt`が空欄のときはLLMを呼ばず`fixed_tags`のパススルーとして扱う。`system_prompt_file`が不正なときは`fixed_tags`の有無に関わらず両出力とも空文字にする
+  - `YoshiakiLLMCaptionGenerator`と共通のLemonade Server呼び出し・リトライ／タイムアウト分類・ログ書き込みロジック（`modules/yoshiaki_llm/llm_common.py`）を再利用。画像バッチという処理軸が無いため`INPUT_IS_LIST`は宣言していない（ウィジェット値はスカラーのまま届く）
+  - 実行ログを`modules/yoshiaki_llm/logs_translate/`に出力（`.gitignore`対象。キャプションノードの`logs/`とは別フォルダ）
+  - `model`コンボの「Refresh Models」ボタン・host/port変更時の自動再取得は`YoshiakiLLMCaptionGenerator`と共通の仕組み（`js/yoshiaki-llm.js`）で本ノードにも対応済み
+- **備考**:
+  - `class_type`は`YoshiakiPromptTranslator`、表示名は`Yoshiaki-PromptTranslator`、`CATEGORY`は`yoshiaki-comfy/LLM`
+  - `system_prompts_translate/`は`YoshiakiLLMCaptionGenerator`用の`system_prompts/`とは物理的に別フォルダ。互いのコンボボックスに相手のファイルは表示されず、`output_mode`の値を間違えて逆フォルダに置いた場合も`INVALID_PROMPT_FILE`扱いで即座に失敗する（安全側）
+  - `prompt_translation`用システムプロンプトファイルの内容そのもの（Anima版・Krea2版・Qwen-Image-Edit版）は本タスクのスコープ外。配置するだけでコンボボックスに表示される
+  - バッチ処理（複数プロンプト一括変換）、翻訳結果の後処理（禁止語チェック等）は未対応
   - 配布予定なし、個人利用限定
 
 ---
