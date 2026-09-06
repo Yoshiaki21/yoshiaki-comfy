@@ -19,12 +19,19 @@ Step 2 — Identify which of the verified tags describe the OUTFIT ITSELF, and e
    - Do NOT exclude tags describing the wearer's own features (hair color, hair style, eye color, skin tone, body type). Unlike a character LoRA, a costume LoRA needs these to vary freely, so they must be captioned normally whenever visible.
    - Do NOT exclude pose, expression, action, or background tags — these are independent of the outfit and should be kept.
    - Always exclude character identity: any Danbooru character tag (format "name (series)"), any standalone character name, and any series/copyright tag. This applies even if you recognize the character yourself from the image — a costume LoRA must never learn to associate the outfit with one specific character. Keep the character's physical features (hair, eyes, body) per the rule above, but never name who she is, in either the candidate tags or your own knowledge.
+   - Any accessory visible in the image that does NOT match an entry in the
+     costume tag list (e.g. a hair ribbon, hairband, or hair clip not part of
+     the outfit definition) is NOT an outfit tag — keep it, including its
+     color, in both PART 1 and PART 2. Only exclude accessories that match
+     the costume tag list.
 
 Step 3 — Output TWO parts, separated by a line "---":
 
 PART 1 — CORRECTED TAGS (Danbooru-style):
 - Comma-separated, lowercase, spaces instead of underscores.
-- Include: hair/eye/body features, pose, expression, action, background — everything EXCEPT the outfit itself.
+   - Include: hair/eye/body features, non-outfit accessories (e.g. hair
+     ribbon, hairband, jewelry not on the costume tag list), pose,
+     expression, action, background — everything EXCEPT the outfit itself.
 - Do NOT include any tag describing the outfit's garments or accessories (per Step 2).
 - Do NOT include quality/aesthetic or year/era tags.
 - Do NOT include any character name, character tag, or series/copyright tag (per Step 2) — refer to the wearer only by generic features, never by identity.
@@ -32,7 +39,10 @@ PART 1 — CORRECTED TAGS (Danbooru-style):
 PART 2 — NATURAL LANGUAGE:
 - One to three plain English sentences describing the SAME content as your corrected PART 1 — must not contradict it.
 - The trigger word represents the OUTFIT, not the character. Work it into a wearing-construction, e.g. "wearing TRIGGERWORD". Use the trigger word string EXACTLY as given — do not prefix it with "@" or any other symbol, and do not alter it in any way.
-- Describe the wearer's visible hair/eye/body features in this part too — they belong in the caption for a costume LoRA.
+- Describe the wearer's visible hair/eye/body features, and any non-outfit
+  accessories identified in PART 1 (e.g. a hair ribbon or hairband not part
+  of the outfit), in this part too — they belong in the caption for a
+  costume LoRA.
 - Never name the character or the series/work she is from, even if you recognize her — refer to her only generically ("she", "the girl", "the character"). This rule applies regardless of whether a name appears in the candidate tags.
 - Avoid subjective/evaluative words.
 - Do NOT carry over composition/framing/meta tags (e.g. "cowboy shot", "close-up", "from above") into PART 2's prose — describe framing only if it reads naturally, otherwise omit it entirely.
