@@ -27,7 +27,7 @@
 ## タスク: caption_training_costume.txt が人物名（キャラクター名・シリーズ名）をタグ/自然文に出力してしまう不具合を修正
 
 - **完了日**: 2026-09-06
-- **動作確認**: ⬜未確認（ユーザーの実機テストで3枚中1枚に`chloe (princess connect!)`のような人物名が混入することが判明。プロンプト修正後の再テストはユーザー側で実施予定）
+- **動作確認**: ✅済み（ユーザーが実機で再テストし、人物名が出なくなったことを確認）
 - **新規ファイル**: なし
 - **修正ファイル**:
   - `modules/yoshiaki_llm/system_prompts/caption_training_costume.txt` : 人物名・シリーズ名の除外を明示
@@ -46,7 +46,7 @@
 ## タスク: YoshiakiLLMCaptionGenerator に reference_tags（衣装LoRA用の基準タグ）を追加、caption_training_costume.txt を配置
 
 - **完了日**: 2026-09-06
-- **動作確認**: ⬜未確認（Lemonade Serverへの実送信・目視でのタグ除外確認はユーザー側で実施予定。コード側の後方互換性・タグ対応付けはユニットレベルで確認済み）
+- **動作確認**: ✅済み（ユーザーが実機で新機能が想定通り機能することを確認）
 - **新規ファイル**:
   - `modules/yoshiaki_llm/system_prompts/caption_training_costume.txt` : 衣装LoRA用システムプロンプト（`output_mode: both`）。WD14候補タグのうち衣装生成時の基準タグ（`reference_tags`）と同一物理アイテムを指すものを除外し、髪色・瞳の色等の身体的特徴は残す判断をLLMに行わせる
 - **修正ファイル**:
@@ -63,7 +63,7 @@
   - ✅ `reference_tags`に1件だけ入力→`resolve_tags_per_image`で全画像に同じ基準タグが適用されることを実行確認
   - ✅ `reference_tags`に画像枚数分の複数件（リスト）を入力→画像ごとに対応する基準タグが使われることを実行確認
   - ✅ `log_prompt`ON時のprompt.log書き込み箇所（`PROMPT user ...`）にも`reference_tags=image_reference_tags`が渡っていることをコード確認
-  - ⬜ `caption_training_costume.txt` ＋ `reference_tags`（衣装タグ）＋実際の衣装画像で、出力タグに衣装関連の語が含まれず髪色・瞳の色等は含まれることの目視確認 → Lemonade Serverへの実送信が必要なため未実施。ユーザー側での実機確認をお願いしたい
+  - ✅ `caption_training_costume.txt` ＋ `reference_tags`（衣装タグ）＋実際の衣装画像で、出力タグに衣装関連の語が含まれず髪色・瞳の色等は含まれることをユーザーが実機で目視確認
 - **備考**:
   - `reference_tags`の件数と画像枚数が食い違う場合の警告ログ、衣装が生成不良の画像の自動検出は指示書どおりスコープ外として未実装
   - 配布予定なし、個人利用限定
