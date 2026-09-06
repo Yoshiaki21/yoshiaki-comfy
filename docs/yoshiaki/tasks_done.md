@@ -24,10 +24,37 @@
 
 ---
 
+## タスク: YoshiakiLLMCaptionGenerator に reference_tags（衣装LoRA用の基準タグ）を追加、caption_training_costume.txt を配置
+
+- **完了日**: 2026-09-06
+- **動作確認**: ⬜未確認（Lemonade Serverへの実送信・目視でのタグ除外確認はユーザー側で実施予定。コード側の後方互換性・タグ対応付けはユニットレベルで確認済み）
+- **新規ファイル**:
+  - `modules/yoshiaki_llm/system_prompts/caption_training_costume.txt` : 衣装LoRA用システムプロンプト（`output_mode: both`）。WD14候補タグのうち衣装生成時の基準タグ（`reference_tags`）と同一物理アイテムを指すものを除外し、髪色・瞳の色等の身体的特徴は残す判断をLLMに行わせる
+- **修正ファイル**:
+  - `modules/yoshiaki_llm/llm_caption_node.py` : `reference_tags`（optional, multiline STRING, 既定空文字）を追加
+- **変更内容**:
+  - `build_user_text` / `build_messages` の末尾に `reference_tags=""` を追加。非空のときだけ「基準タグ列」ブロックを`tags`ブロックの前に追加する（空なら従来と1バイトも変わらない出力）
+  - `INPUT_TYPES`の`optional`末尾（`image_names`の次）に`reference_tags`を追加。`required`ではなく`optional`かつ末尾に置くことで、既存ワークフローJSONの`widgets_values`位置ズレを避けた
+  - `generate()`/`IS_CHANGED()`のシグネチャ末尾に`reference_tags=""`を追加し、`tags`と同じ`resolve_tags_per_image`規則（1件なら全画像へブロードキャスト、複数件なら画像ごとに1:1対応）で画像へ対応付け
+  - プロンプトトークン概算・実際の送信メッセージ組み立て・`log_prompt`ON時のプロンプトログの3箇所すべてに`reference_tags=image_reference_tags`を渡すよう統一
+- **自己レビュー（指示書7章チェックリスト）**:
+  - ✅ `reference_tags`未接続/空欄で`build_user_text`の出力が変更前と完全一致することをPythonで実行確認（`reference_tags`省略・空文字・空白のみの3パターンとも一致）
+  - ✅ `optional`末尾に追加したため既存ワークフローJSONの`widgets_values`位置はズレない（`image_names`と同じ扱い）
+  - ✅ `reference_tags`が空文字である限り`caption_training_both.txt`等の既存プロンプトの送信内容は変更前と同一（コードパス上、空文字なら`build_user_text`の分岐に一切入らない）
+  - ✅ `reference_tags`に1件だけ入力→`resolve_tags_per_image`で全画像に同じ基準タグが適用されることを実行確認
+  - ✅ `reference_tags`に画像枚数分の複数件（リスト）を入力→画像ごとに対応する基準タグが使われることを実行確認
+  - ✅ `log_prompt`ON時のprompt.log書き込み箇所（`PROMPT user ...`）にも`reference_tags=image_reference_tags`が渡っていることをコード確認
+  - ⬜ `caption_training_costume.txt` ＋ `reference_tags`（衣装タグ）＋実際の衣装画像で、出力タグに衣装関連の語が含まれず髪色・瞳の色等は含まれることの目視確認 → Lemonade Serverへの実送信が必要なため未実施。ユーザー側での実機確認をお願いしたい
+- **備考**:
+  - `reference_tags`の件数と画像枚数が食い違う場合の警告ログ、衣装が生成不良の画像の自動検出は指示書どおりスコープ外として未実装
+  - 配布予定なし、個人利用限定
+
+---
+
 ## タスク: YoshiakiLLMCaptionGenerator の model コンボを host/port変更時に動的更新（JS＋サーバールート方式）
 
 - **完了日**: 2026-09-05
-- **動作確認**: ⬜未確認（コード修正のみ。ユーザー側で実機確認予定）
+- **動作確認**: ✅済み（ユーザーがブラウザリロードで`model`コンボが更新されることを実機確認）
 - **新規ファイル**:
   - `modules/yoshiaki_llm/server.py` : `/yoshiaki/llm/models`（POST）を新設。リクエストの`host`/`port`/`api_key`で既存の`fetch_lemonade_models()`を呼び、モデル一覧（取得失敗時は`FALLBACK_MODEL_LABEL`）をJSONで返す
   - `js/yoshiaki-llm.js` : `YoshiakiLLMCaptionGenerator`の`lemonade_host`/`lemonade_port`/`lemonade_api_key`ウィジェットの`.callback`をラップし、値確定のたびに上記ルートを叩いて`model`コンボの`options.values`と選択値を更新。`model`直後に手動再取得用の「Refresh Models」ボタンを追加。ワークフロー読み込み直後（`nodeCreated`の次tick）にも自動で一度実行し、保存済みworkflowが持つhost/portと食い違ったままにならないようにした

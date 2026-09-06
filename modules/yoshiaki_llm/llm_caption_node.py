@@ -316,10 +316,21 @@ def encode_image_base64(pil_image):
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
-def build_user_text(tags, trigger_word, format_correction=False):
+def build_user_text(tags, trigger_word, format_correction=False, reference_tags=""):
     # 5.2 トリガーワードの有無で2パターン。
     # format_correction=True のときのみ、末尾に訂正指示を追記する（構成順序は変更しない）。
+    # reference_tags が非空のときだけ「基準タグ列」ブロックを先頭に追加する
+    # （衣装LoRA用システムプロンプト向け。空なら従来と完全に同じ文面＝後方互換）。
     tags_block = f"Candidate tags from WD14 (verify against the image, correct as needed):\n{tags}"
+    reference_tags = (reference_tags or "").strip()
+    if reference_tags:
+        reference_block = (
+            "Reference tags used to create the fixed element the trigger word represents "
+            "(match by physical item, not exact string; use as exclusion guidance):\n"
+            f"{reference_tags}"
+        )
+        tags_block = f"{reference_block}\n{tags_block}"
+
     trigger_word = (trigger_word or "").strip()
     if trigger_word:
         user_text = f"Trigger word: {trigger_word}\n{tags_block}"
@@ -331,14 +342,16 @@ def build_user_text(tags, trigger_word, format_correction=False):
     return user_text
 
 
-def build_messages(system_prompt_text, tags, trigger_word, image_base64, format_correction=False):
+def build_messages(system_prompt_text, tags, trigger_word, image_base64, format_correction=False,
+                    reference_tags=""):
     # 5.2 テキスト部と画像部は同一 user message 内のパートとして含める
     return [
         {"role": "system", "content": system_prompt_text},
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": build_user_text(tags, trigger_word, format_correction)},
+                {"type": "text", "text": build_user_text(tags, trigger_word, format_correction,
+                                                          reference_tags)},
                 {
                     "type": "image_url",
                     "image_url": {"url": f"data:{IMAGE_MIME_TYPE};base64,{image_base64}"},
@@ -993,6 +1006,14 @@ class YoshiakiLLMCaptionGenerator:
             # 未指定の場合は image_001 形式の連番をログのラベルに使う。
             "optional": {
                 "image_names": ("STRING", {"default": "", "multiline": True}),
+                # 衣装LoRA等、トリガーワードが「固定要素（衣装など）」を表す場合に使う。
+                # 生成/作成時に使った基準タグ列を渡すと、システムプロンプト側で
+                # 「WD14候補タグのうちこれと同一物理アイテムを指すものは除外する」判断材料になる
+                # （例: caption_training_costume.txt）。空文字なら従来通りブロック自体を追加しない
+                # ＝人物用システムプロンプト・既存ワークフローへの影響はゼロ。
+                "reference_tags": ("STRING", {"default": "", "multiline": True,
+                    "tooltip": "衣装タグ等、トリガーワードが表す固定要素の基準タグ一覧（除外判断の参考情報）。"
+                               "空欄なら従来通り送信しません。"}),
             },
         }
 
@@ -1023,7 +1044,7 @@ class YoshiakiLLMCaptionGenerator:
     def IS_CHANGED(cls, image, tags, trigger_word, system_prompt_file, lemonade_host,
                    lemonade_port, lemonade_api_key, model, enable_thinking, temperature, max_tokens,
                    timeout_sec, always_regenerate, log_prompt,
-                   max_retries=DEFAULT_MAX_RETRIES, image_names=""):
+                   max_retries=DEFAULT_MAX_RETRIES, image_names="", reference_tags=""):
         if first_value(always_regenerate, False):
             # ON: NaN は自身との等値比較が成立しないため、ComfyUI は常に「変化あり」と判断する
             return float("nan")
@@ -1035,7 +1056,7 @@ class YoshiakiLLMCaptionGenerator:
     def generate(self, image, tags, trigger_word, system_prompt_file, lemonade_host,
                  lemonade_port, lemonade_api_key, model, enable_thinking, temperature, max_tokens,
                  timeout_sec, always_regenerate=False, log_prompt=False,
-                 max_retries=DEFAULT_MAX_RETRIES, image_names=""):
+                 max_retries=DEFAULT_MAX_RETRIES, image_names="", reference_tags=""):
         # always_regenerate はキャッシュ制御（IS_CHANGED）専用のため、生成処理では使用しない
         run_started = time.monotonic()
         # INPUT_IS_LIST = True のため全入力がリストで届く。tags 以外は単一値として取り出す。
@@ -1053,6 +1074,7 @@ class YoshiakiLLMCaptionGenerator:
         # 7.1 max_retries が無い古いワークフローでも落とさず既定の3回にフォールバックする
         max_retries = resolve_max_retries(first_value(max_retries, DEFAULT_MAX_RETRIES))
         image_names = first_value(image_names, "")
+        reference_tags = first_value(reference_tags, "")
 
         # 4.1 メタデータ行から output_mode を判定し、その行を除いた本文を system message にする
         if system_prompt_file == FALLBACK_SYSTEM_PROMPT_LABEL:
@@ -1064,6 +1086,8 @@ class YoshiakiLLMCaptionGenerator:
         # image はバッチテンソル1個のリスト、または上流によってはテンソルのリストで届く
         images = list(iter_images(image))
         tags_per_image = resolve_tags_per_image(tags, len(images))
+        # reference_tags も tags と同じ規則（1件なら全画像へブロードキャスト）で対応付ける
+        reference_tags_per_image = resolve_tags_per_image(reference_tags, len(images))
         name_entries = split_image_name_entries(image_names)
         log_dir = ensure_log_dir()
         labels = resolve_image_labels(name_entries, len(images))
@@ -1113,6 +1137,7 @@ class YoshiakiLLMCaptionGenerator:
         for index, image_tensor in enumerate(images, start=1):
             label = labels[index - 1]
             image_tags = tags_per_image[index - 1]
+            image_reference_tags = reference_tags_per_image[index - 1]
             write_log(log_dir, f"START: {label}")
 
             # 4.1 事前チェック：プロンプトファイルが不正ならLLMを呼ばずに即スキップ
@@ -1142,7 +1167,8 @@ class YoshiakiLLMCaptionGenerator:
             caption = ""
             # 13.6.1 クランプに使うプロンプト側トークン数。応答の usage が取れたら実測値へ差し替える
             prompt_tokens = estimate_prompt_tokens(
-                system_prompt_text, build_user_text(image_tags, trigger_word)
+                system_prompt_text,
+                build_user_text(image_tags, trigger_word, reference_tags=image_reference_tags)
             )
             attempt_max_tokens, attempt_temperature, attempt_clamped = max_tokens, temperature, False
             # 7.1 直前の試行の失敗理由に応じて次の試行のパラメータを分岐させる
@@ -1160,7 +1186,8 @@ class YoshiakiLLMCaptionGenerator:
                     max_tokens, temperature, max_context_window, prompt_tokens
                 )
                 messages = build_messages(system_prompt_text, image_tags, trigger_word,
-                                          image_base64, format_correction)
+                                          image_base64, format_correction,
+                                          reference_tags=image_reference_tags)
                 payload = build_chat_payload(model, messages, enable_thinking,
                                              attempt_temperature, attempt_max_tokens)
 
@@ -1170,7 +1197,7 @@ class YoshiakiLLMCaptionGenerator:
                         log_dir,
                         f"PROMPT user {label} ({index}/{len(images)}, "
                         f"attempt {attempt}/{max_retries}):",
-                        f"{build_user_text(image_tags, trigger_word, format_correction)}\n"
+                        f"{build_user_text(image_tags, trigger_word, format_correction, reference_tags=image_reference_tags)}\n"
                         f"{describe_image_part(pil_image, image_base64)}",
                     )
                 # 13.1 リクエストごとに一意なIDを発行し、タイムアウト時のキャンセルに使う
