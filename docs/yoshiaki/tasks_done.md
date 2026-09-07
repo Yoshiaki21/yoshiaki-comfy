@@ -24,6 +24,29 @@
 
 ---
 
+## タスク: LoRA Caption Load / Save で画像ファイル名と学習用txtの中身がずれる不具合を修正
+
+- **完了日**: 2026-09-08
+- **動作確認**: ✅済み（スタンドアロンスクリプトで検証: ①大文字拡張子`.PNG`／`.Png`・ドット始まりファイル・`*.png`という名前のディレクトリが混在するフォルダで`Name list`と`Image list`の元になるファイル一覧が一致すること、②`INPUT_IS_LIST`形式（スカラーは1要素リスト、`text`はN要素リスト）で`Name list`i番目とキャプションi番目が1対1で書き出されること、③同一インスタンスで「途中で2件だけ処理→全件再実行」してもずれないこと、④`overwrite=OFF`で既存`.txt`はスキップ・無い分だけ書かれること、⑤`output_path`指定時に`.txt`と元ファイル名のままの画像コピーが両方出ること、⑥`text`が素の文字列で届く場合も動くこと、⑦件数不一致時に警告して少ない方の件数分だけ書くこと、⑧空フォルダ／PNG無しフォルダで`FileNotFoundError`になること。ComfyUI実機での確認はユーザー側で実施予定）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_loracaption/lora_caption.py` : Saveを`INPUT_IS_LIST`＋位置ベース1対1対応に書き換え、`_overwrite_index`カウンターと`generate_filename()`を廃止。Loadの`Name list`/`Image list`を`list_image_files()`による単一走査（大文字小文字無視・ディレクトリ除外・ソート）に統一し、`glob`依存と`io_file_list()`・未使用の`pattern`引数を削除
+  - `README.md` : Load/Saveの説明を新しい対応付け・`overwrite`の意味に合わせて更新、「同名`.txt`があるとエラー」の制約を削除、修正済みバグ一覧に本件を追記
+  - `CLAUDE.md` : 同上＋「ノードインスタンスに実行状態を持たせない」注意を備考に追加
+- **変更内容**:
+  - ユーザーから「Load→WD14 Tagger→LLMCaptionGenerator→Save のワークフローで、画像ファイル名と学習用txtの中身がずれる」と報告があり、ワークフローJSONと各ノードのコード、ComfyUI本体（`D:\stable-diffusion\ComfyUI`）の`execution.py`／`comfy_execution/caching.py`を調査
+  - 主因: Saveの`overwrite=ON`時のカウンター方式は「ComfyUIはキュー実行ごとにノードインスタンスを作り直す」前提だったが、実際は`caches.objects`（`CacheKeySetID`＝ノードID＋class_typeがキー）にインスタンスがキャッシュされ、サーバー起動中ずっと再利用される。そのため途中キャンセル／エラーで呼び出し回数が画像枚数の倍数から外れたり、画像枚数の違うフォルダへ切り替えたりすると`index = counter % len(namelist)`が0以外から始まり、以降のファイル名が全部ずれる。同じフォルダを繰り返し実行している間は偶然ずれないため気づきにくかった
+  - 副因: Loadは`Name list`を`glob.glob('*.png')`、`Image list`を`os.listdir`＋`lower().endswith('.png')`と別々に集めていた。Linuxでは`glob`が大文字小文字を区別し、ドット始まりファイルも除外するため、`.PNG`等があると名前一覧だけ件数が少なくなり、その位置以降がずれる
+  - 修正: Saveは`INPUT_IS_LIST = True`にしてキャプション全件を1回で受け取り、`Name list`と`zip`で1対1に対応付ける（ComfyUIの`map_node_over_list`による1件ずつの繰り返し呼び出しに依存しなくなり、実行間の状態も持たない）。`overwrite`はOFF＝既存`.txt`スキップ／ON＝上書きの意味だけになり、対応付けには関与しない。画像コピーはファイル名を`[:-4]`で切らず元の名前（大文字拡張子含む）のまま使う。戻り値は`{"ui": {"string": [...]}}`のみ（`RETURN_TYPES=()`のまま。ComfyUIの`get_output_from_returns`はuiのみのdictを受け付けることを確認）
+  - Loadは`list_image_files()`1回の結果から`Name list`・画像読み込み両方を作り、`sorted()`で順序を固定
+  - なおワークフロー側でLLMCaptionGeneratorの`image_names`に`Name list`ではなく`path`が繋がっていたが、これはログのラベルにしか使われないためずれの原因ではない（ログを見やすくするなら`Name list`へ繋ぎ直すと良い）
+- **備考**:
+  - 既存ワークフローの結線・ウィジェット数は変わらないので、保存済みワークフローの修正は不要
+  - `overwrite=OFF`の挙動が「まだ`.txt`が無い最初の名前に書く」から「位置対応の名前に`.txt`が無ければ書く」に変わった。以前の挙動は対応付けを推測するための苦肉の策だったので、実用上は同じか改善になる
+  - 実機確認の観点: 途中でキャンセルした直後に同じフォルダを再実行してもずれないこと、4枚→5枚のフォルダへ切り替えてもずれないこと
+
+---
+
 ## タスク: 日本語プロンプト→英語プロンプト変換ノード（YoshiakiPromptTranslator）を新設、共通ロジックをllm_common.pyへ切り出し
 
 - **完了日**: 2026-09-06

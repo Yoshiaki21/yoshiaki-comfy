@@ -85,10 +85,12 @@
   - WD14 Taggerと組み合わせて使う想定（コード上の依存ではなくワークフロー上の連携）
   - `YoshiakiLoRACaptionSave`に`output_path`（保存先を`path`と分けて指定、指定時は元画像もコピーする）と`overwrite`（既存ファイルを無視して`Name list`順に上書きする）を追加（2026-09-04）
   - `YoshiakiLoRACaptionLoad`の潜在バグを修正（2026-09-04）: 画像0枚時（PNGが1枚も無い場合）に明確な`FileNotFoundError`を出すようにした、画像1枚のときに出力の型が壊れる不具合を修正（1枚/複数枚を統一処理）、画像枚数をノード自身のUI表示にのみ出すようにした（`{"ui": {"text": [...]}, "result": (...)}`形式。他ノードへは渡らず`RETURN_TYPES`は3出力のまま変更なし）
+  - ファイル名とキャプションのずれを修正（2026-09-08）: `YoshiakiLoRACaptionSave`は`INPUT_IS_LIST = True`で`text`のリスト全件を1回で受け取り、`Name list`のi番目とキャプションのi番目を位置ベースで1対1対応させて書き出す（インスタンス内カウンター`_overwrite_index`は廃止）。`overwrite`はOFFで「既に`.txt`がある名前をスキップ」、ONで「上書き」のみを意味し、対応付けには影響しない。件数不一致は警告して少ない方の件数分だけ書く。`YoshiakiLoRACaptionLoad`は`Name list`と`Image list`を`list_image_files()`による単一走査（拡張子の大文字小文字を無視、ディレクトリ除外、ファイル名順ソート）から作る
 - **備考**:
   - `class_type`/表示名は`YoshiakiLoRACaptionLoad`/`YoshiakiLoRACaptionSave`(表示名は`Yoshiaki LoRA Caption Load`/`Yoshiaki LoRA Caption Save`)、`CATEGORY`は`yoshiaki-comfy/LoRA`
   - フォーク元の3つの既存パッチ（`cstr`未import対策、prefix空文字対策、`IS_CHANGED`未定義対策）をそのまま維持して移植
-  - PNGのみ対応、同名`.txt`が既存のフォルダに対して実行するとエラーになる制約は本家のまま
+  - PNGのみ対応の制約は本家のまま。「同名`.txt`が既存のフォルダに対して実行するとエラー」という制約は2026-09-08の修正で解消（OFF時はスキップ、ON時は上書き）
+  - ComfyUIはノードオブジェクトを`caches.objects`にノードID単位でキャッシュし、キュー実行をまたいで同じインスタンスを再利用する（`--cache-none`起動時を除く）。このパック内のノードで`self.xxx`に実行状態を持たせる設計は避けること（2026-09-08のずれ不具合の直接原因）
   - 配布予定なし、個人利用限定
 
 ---
