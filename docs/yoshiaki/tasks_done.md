@@ -27,7 +27,7 @@
 ## タスク: YoshiakiLLMCaptionGenerator のソケット表記を接続先・接続元と揃える（見た目のみ）
 
 - **完了日**: 2026-09-08
-- **動作確認**: ⬜未確認（`py_compile`のみ。ComfyUI実機でのノード表示はユーザー側で確認予定。フロントエンド1.49.6のソースで`display_name`・`forceInput`・`placeholder`が入力オプションとして受理されることは確認済み）
+- **動作確認**: ✅済み（ComfyUI実機でノード表示をユーザーが確認済み・2026-09-08。フロントエンド1.49.6のソースで`display_name`・`forceInput`・`placeholder`が入力オプションとして受理されることも事前に確認）
 - **新規ファイル**: なし
 - **修正ファイル**:
   - `modules/yoshiaki_llm/llm_caption_node.py` : `INPUT_TYPES`の`tags`/`image_names`/`reference_tags`のオプションと`RETURN_NAMES`を変更
