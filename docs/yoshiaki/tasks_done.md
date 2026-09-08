@@ -24,6 +24,28 @@
 
 ---
 
+## タスク: YoshiakiLLMCaptionGenerator のソケット表記を接続先・接続元と揃える（見た目のみ）
+
+- **完了日**: 2026-09-08
+- **動作確認**: ⬜未確認（`py_compile`のみ。ComfyUI実機でのノード表示はユーザー側で確認予定。フロントエンド1.49.6のソースで`display_name`・`forceInput`・`placeholder`が入力オプションとして受理されることは確認済み）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_llm/llm_caption_node.py` : `INPUT_TYPES`の`tags`/`image_names`/`reference_tags`のオプションと`RETURN_NAMES`を変更
+  - `README.md` / `CLAUDE.md` : 表記変更とワークフロー互換の注意を追記
+- **変更内容**:
+  - ユーザー要望「接続先を明確にしたい・欄の目的を分かりやすくしたい」に対し、機能・引数名は変えずに表示だけ調整
+  - `tags`: `forceInput: True`で接続専用ソケット化し、`display_name: "文字列"`（WD14 Taggerの出力`STRING`の日本語表示と同じ）。従来はリンク済みの複数行ウィジェットとしてラベル無しのソケットだけが描画されていた
+  - `image_names`: 同様に`forceInput: True`＋`display_name: "Name list"`（LoRA Caption Loadの出力ラベルと同じ）
+  - 出力`RETURN_NAMES`を`("caption_text",)`から`("text",)`へ（LoRA Caption Saveの`text`入力と同じ表記）。出力はスロット番号で結線されるため既存ワークフローの接続はそのまま
+  - `reference_tags`: `placeholder`に「system pronptのcaption_training_costumeを使用する際に使用し、可変したい要素の生成時に使ったプロントを入力」を設定（ユーザー指定の原文どおり。表記の修正はしない）
+  - `display_name`はフロントエンドの入力オプションスキーマ（`zBaseInputOptions`）に正式にあるキーで、`localized_name`より優先してラベルに使われる。`placeholder`は複数行STRINGウィジェットの`textarea.placeholder`にそのまま入る
+- **備考**:
+  - `tags`/`image_names`のウィジェットが無くなるため、`widgets_values`を位置で復元する古いフロントエンドでは保存済みワークフローの値が2つ分ずれうる。`widgets_values_named`を書き出す新しいフロントエンド（ユーザー環境のワークフローJSONには含まれている）では名前で復元されるため影響なし
+  - `tags`は必須入力なので、未接続のまま実行すると「入力が不足」エラーになる（以前は空欄のまま実行できた）。WD14 Taggerを常に繋ぐ運用なので実害なし
+  - 手入力でタグやファイル名を渡したい場合はPrimitive/StringノードをつないでSTRINGを入力する
+
+---
+
 ## タスク: LoRA Caption Load / Save で画像ファイル名と学習用txtの中身がずれる不具合を修正
 
 - **完了日**: 2026-09-08

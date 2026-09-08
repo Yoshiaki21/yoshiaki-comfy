@@ -179,8 +179,8 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 画像とWD14 Taggerなどのタグ文字列を、手元のLAN上で動く **Lemonade Server**（AMD製のローカルLLM推論サーバー、OpenAI互換API）に送り、タグの補正やキャプション文（自然言語の説明文）をLLMに生成させるノードです。
 
 ```
-[LoadImage] → [WD14Tagger] → tags(STRING) ┐
-       └─────────────────────────────────→ [Yoshiaki-LLMCaptionGenerator] → caption_text(STRING)
+[LoadImage] → [WD14Tagger] → 文字列(STRING) ┐
+       └──────────────────────────────────→ [Yoshiaki-LLMCaptionGenerator] → text(STRING)
 ```
 
 **入力（抜粋）**
@@ -188,14 +188,16 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 | 名前 | 型 | 説明 |
 |---|---|---|
 | `image` | IMAGE | キャプション対象の画像（バッチ/リストどちらも可） |
-| `tags` | STRING | WD14 Tagger等から受け取るタグ文字列（このノード自体はタグ生成ノードに依存しない。単なるテキスト入力） |
+| `tags`（ノード上の表示は`文字列`） | STRING | WD14 Tagger等から受け取るタグ文字列（このノード自体はタグ生成ノードに依存しない。単なるテキスト入力）。接続専用ソケット（`forceInput`）で、表示名はWD14 Taggerの出力ラベルに合わせている |
+| `image_names`（ノード上の表示は`Name list`、任意） | STRING | ログに出す画像ファイル名一覧。`Yoshiaki LoRA Caption Load`の`Name list`を繋ぐ。接続専用ソケット |
+| `reference_tags`（任意） | STRING | 衣装LoRA用。`caption_training_costume.txt`を使うときに、可変にしたい要素の生成時に使ったプロンプトを入力する（空欄時はテキストエリア内に「system pronptのcaption_training_costumeを使用する際に使用し、可変したい要素の生成時に使ったプロントを入力」と薄く表示される） |
 | `trigger_word` | STRING | 学習用データセットのトリガーワード（任意。指定するとタグ列の先頭に必ず挿入される） |
 | `system_prompt_file` | COMBO | [`system_prompts/`](modules/yoshiaki_llm/system_prompts) フォルダ内の `.txt` から選択 |
 | `lemonade_host` / `lemonade_port` / `lemonade_api_key` | STRING/INT/STRING | Lemonade ServerのAPI接続先 |
 | `model` | COMBO | 接続先から取得したモデル一覧 |
 | `temperature` / `max_tokens` / `timeout_sec` / `max_retries` 等 | — | 生成パラメータ・リトライ回数の設定 |
 
-**出力**: `caption_text` (STRING) — `image`と同じ枚数・同じ順序のキャプション文字列リスト
+**出力**: `text` (STRING、旧名`caption_text`) — `image`と同じ枚数・同じ順序のキャプション文字列リスト。ラベルは接続先の`Yoshiaki LoRA Caption Save`の`text`入力に合わせている
 
 ### 動作の仕組み
 

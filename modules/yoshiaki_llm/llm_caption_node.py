@@ -369,7 +369,13 @@ class YoshiakiLLMCaptionGenerator:
         return {
             "required": {
                 "image": ("IMAGE",),
-                "tags": ("STRING", {"multiline": True, "default": ""}),
+                # 見た目のみの調整（2026-09-08）: forceInput で純粋な入力ソケットにし、
+                # display_name で WD14 Tagger 側の出力ラベル（"STRING" の日本語表示 "文字列"）と
+                # 同じ表記にして、どのソケット同士が繋がっているかを見て分かるようにする。
+                # 受け取る値・処理内容は従来と同じ（multiline ウィジェットが無くなるだけ）。
+                "tags": ("STRING", {"multiline": True, "default": "", "forceInput": True,
+                    "display_name": "文字列",
+                    "tooltip": "WD14 Tagger の出力（文字列）を接続。画像1枚につき1件のタグ列。"}),
                 "trigger_word": ("STRING", {"default": ""}),
                 # 4.1 output_mode ウィジェットは廃止。system_prompt_file 1行目の
                 # メタデータ行（<!-- output_mode: ... -->）から自動判定する
@@ -412,13 +418,20 @@ class YoshiakiLLMCaptionGenerator:
             # 含まれないため、LoRA Caption Load の namelist 相当を別途受け取る。
             # 未指定の場合は image_001 形式の連番をログのラベルに使う。
             "optional": {
-                "image_names": ("STRING", {"default": "", "multiline": True}),
+                # 見た目のみの調整（2026-09-08）: tags と同様に forceInput ソケット化し、
+                # display_name で LoRA Caption Load 側の出力ラベル "Name list" と同じ表記にする。
+                "image_names": ("STRING", {"default": "", "multiline": True, "forceInput": True,
+                    "display_name": "Name list",
+                    "tooltip": "LoRA Caption Load の Name list を接続（ログ表示用のファイル名一覧。任意）。"}),
                 # 衣装LoRA等、トリガーワードが「固定要素（衣装など）」を表す場合に使う。
                 # 生成/作成時に使った基準タグ列を渡すと、システムプロンプト側で
                 # 「WD14候補タグのうちこれと同一物理アイテムを指すものは除外する」判断材料になる
                 # （例: caption_training_costume.txt）。空文字なら従来通りブロック自体を追加しない
                 # ＝人物用システムプロンプト・既存ワークフローへの影響はゼロ。
+                # placeholder は空欄時にテキストエリア内へ薄く表示される説明文（見た目のみ、値には影響しない）
                 "reference_tags": ("STRING", {"default": "", "multiline": True,
+                    "placeholder": "system pronptのcaption_training_costumeを使用する際に使用し、"
+                                   "可変したい要素の生成時に使ったプロントを入力",
                     "tooltip": "衣装タグ等、トリガーワードが表す固定要素の基準タグ一覧（除外判断の参考情報）。"
                                "空欄なら従来通り送信しません。"}),
             },
@@ -426,7 +439,9 @@ class YoshiakiLLMCaptionGenerator:
 
     # 2. 出力ソケットの型（複数なら型のタプル）
     RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("caption_text",)
+    # 出力ラベルは接続先（LoRA Caption Save の text 入力）と同じ表記にする（2026-09-08、旧: caption_text）。
+    # 出力はスロット番号で結線されるため、保存済みワークフローの接続には影響しない。
+    RETURN_NAMES = ("text",)
 
     # 9章 WD14 Tagger は OUTPUT_IS_LIST=(True,) で画像枚数分のタグをリストで返す。
     # INPUT_IS_LIST を宣言しないと ComfyUI がリスト要素ごとにノードを再実行してしまい
