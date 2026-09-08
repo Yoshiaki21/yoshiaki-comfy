@@ -27,7 +27,7 @@
 ## タスク: LoRA Caption Load / Save で画像ファイル名と学習用txtの中身がずれる不具合を修正
 
 - **完了日**: 2026-09-08
-- **動作確認**: ✅済み（スタンドアロンスクリプトで検証: ①大文字拡張子`.PNG`／`.Png`・ドット始まりファイル・`*.png`という名前のディレクトリが混在するフォルダで`Name list`と`Image list`の元になるファイル一覧が一致すること、②`INPUT_IS_LIST`形式（スカラーは1要素リスト、`text`はN要素リスト）で`Name list`i番目とキャプションi番目が1対1で書き出されること、③同一インスタンスで「途中で2件だけ処理→全件再実行」してもずれないこと、④`overwrite=OFF`で既存`.txt`はスキップ・無い分だけ書かれること、⑤`output_path`指定時に`.txt`と元ファイル名のままの画像コピーが両方出ること、⑥`text`が素の文字列で届く場合も動くこと、⑦件数不一致時に警告して少ない方の件数分だけ書くこと、⑧空フォルダ／PNG無しフォルダで`FileNotFoundError`になること。ComfyUI実機での確認はユーザー側で実施予定）
+- **動作確認**: ✅済み（スタンドアロンスクリプトで検証: ①大文字拡張子`.PNG`／`.Png`・ドット始まりファイル・`*.png`という名前のディレクトリが混在するフォルダで`Name list`と`Image list`の元になるファイル一覧が一致すること、②`INPUT_IS_LIST`形式（スカラーは1要素リスト、`text`はN要素リスト）で`Name list`i番目とキャプションi番目が1対1で書き出されること、③同一インスタンスで「途中で2件だけ処理→全件再実行」してもずれないこと、④`overwrite=OFF`で既存`.txt`はスキップ・無い分だけ書かれること、⑤`output_path`指定時に`.txt`と元ファイル名のままの画像コピーが両方出ること、⑥`text`が素の文字列で届く場合も動くこと、⑦件数不一致時に警告して少ない方の件数分だけ書くこと、⑧空フォルダ／PNG無しフォルダで`FileNotFoundError`になること。加えてComfyUI実機で Load→WD14 Tagger→LLMCaptionGenerator→Save のワークフローを実行し、画像ファイルと学習用txtがずれないことをユーザーが確認済み・2026-09-08）
 - **新規ファイル**: なし
 - **修正ファイル**:
   - `modules/yoshiaki_loracaption/lora_caption.py` : Saveを`INPUT_IS_LIST`＋位置ベース1対1対応に書き換え、`_overwrite_index`カウンターと`generate_filename()`を廃止。Loadの`Name list`/`Image list`を`list_image_files()`による単一走査（大文字小文字無視・ディレクトリ除外・ソート）に統一し、`glob`依存と`io_file_list()`・未使用の`pattern`引数を削除
