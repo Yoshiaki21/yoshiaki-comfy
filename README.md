@@ -191,7 +191,7 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 | `image` | IMAGE | キャプション対象の画像（バッチ/リストどちらも可） |
 | `tags`（ノード上の表示は`文字列`） | STRING | WD14 Tagger等から受け取るタグ文字列（このノード自体はタグ生成ノードに依存しない。単なるテキスト入力）。接続専用ソケット（`forceInput`）で、表示名はWD14 Taggerの出力ラベルに合わせている |
 | `image_names`（ノード上の表示は`Name list`、任意） | STRING | ログに出す画像ファイル名一覧。`Yoshiaki LoRA Caption Load`の`Name list`を繋ぐ。接続専用ソケット |
-| `reference_tags`（任意） | STRING | 衣装LoRA用。`caption_training_costume.txt`を使うときに、可変にしたい要素の生成時に使ったプロンプトを入力する（空欄時はテキストエリア内に「system pronptのcaption_training_costumeを使用する際に使用し、可変したい要素の生成時に使ったプロントを入力」と薄く表示される） |
+| `reference_tags`（任意） | STRING | 衣装LoRA用。`caption_training_costume.txt`を使うときに、可変にしたい要素の生成時に使ったプロンプトを入力する（空欄時はテキストエリア内に「system pronptのcaption_training_costumeを使用する際に使用し、可変したい要素の生成時に使ったプロントを入力」と薄く表示される）。`caption_training_both_2char.txt`使用時は、2人目キャラクターの識別情報欄として転用する（詳細は下記「2人キャラクターのキャプション生成」参照） |
 | `trigger_word` | STRING | 学習用データセットのトリガーワード（任意。指定するとタグ列の先頭に必ず挿入される） |
 | `system_prompt_file` | COMBO | [`system_prompts/`](modules/yoshiaki_llm/system_prompts) フォルダ内の `.txt` から選択 |
 | `lemonade_host` / `lemonade_port` / `lemonade_api_key` | STRING/INT/STRING | Lemonade ServerのAPI接続先 |
@@ -210,6 +210,36 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 
 - LAN上（またはlocalhost）で **Lemonade Server** が起動している必要があります。既定の接続先は開発時の環境に合わせたLAN内IPになっているため、`lemonade_host` / `lemonade_port` ウィジェットで自分の環境に合わせて変更してください
 - ComfyUI-Impact-Pack等のような他のカスタムノードパックへのコード依存はありません（`tags`入力にWD14 Taggerを繋ぐのはワークフロー上の運用であり、コード上の依存ではありません）
+
+### 2人キャラクターのキャプション生成（`caption_training_both_2char.txt`）
+
+1枚の画像に2人のキャラクター（それぞれ別のトリガーワードを持つ）が一緒に写っている学習画像用に、通常の1人用`caption_training_both.txt`を拡張したシステムプロンプトです。**ノードのコード修正は不要**で、衣装LoRA用に用意されている`reference_tags`欄を2人目キャラの識別情報欄として転用する形で動きます。
+
+**入力の割り当て**
+
+| 欄 | 役割 |
+|---|---|
+| `trigger_word` | キャラA（主キャラ）のトリガーワード。従来通りタグ列先頭に自動挿入される |
+| `reference_tags` | キャラBの識別情報。以下の固定フォーマットで入力する |
+
+```
+IDENTITY_BLOCK
+character_b_trigger_word: hikari_mz
+character_b_features: short hair, black hair, red eyes
+```
+
+- 1行目`IDENTITY_BLOCK`は固定文字列。2〜3行目のトリガーワード・特徴を実際のキャラBに合わせて書き換える
+- `character_b_features`（髪色・瞳色などの固定特徴）は、画像中のどちらがキャラBかをLLMに識別させるためだけの情報で、生成されるタグ・自然文には一切出力されない
+- 2人とも写っていない（1人だけの）画像バッチでは`reference_tags`を空欄にする。その場合は従来の1人用`caption_training_both.txt`と同じ挙動になる（写っている1人＝`trigger_word`のキャラ、という判定）
+- `reference_tags`はウィジェット直接入力だとバッチ内の全画像へ同じ内容がブロードキャストされる（`tags`と同じ`resolve_tags_per_image`の仕組み）。同じ2人組の画像だけをまとめてバッチ処理する運用を想定している。バッチ内で組み合わせが変わる場合は、外部からSTRINGリストを`reference_tags`へ接続すれば画像ごとに変えられる
+
+**出力フォーマット**
+
+タグ列にはキャラBのトリガーワードが平置きの1タグとして含まれ（キャラAは従来通りコードが自動挿入）、自然文側で「誰が何をしているか」を文構造で書き分ける。
+
+```
+suzune_sy, hikari_mz, 2girls, smiling, sitting on a bench, park background. suzune_sy sits on the left side of the bench smiling, while hikari_mz sits beside her on the right, both in casual outfits.
+```
 
 ---
 
