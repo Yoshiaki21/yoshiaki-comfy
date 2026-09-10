@@ -9,6 +9,7 @@
 | **Yoshiaki Wildcard Processor** (`YoshiakiWildcardProcessor`) | ワイルドカード構文のテキストを解決して文字列を出力する |
 | **Yoshiaki Wildcard Encode** (`YoshiakiWildcardEncode`) | ワイルドカード構文とLoRA構文を解決し、LoRA適用済みの `MODEL`/`CLIP` とCLIP条件付け(`CONDITIONING`)を出力する |
 | **Yoshiaki-LLMCaptionGenerator** (`YoshiakiLLMCaptionGenerator`) | WD14 Tagger等が出力したタグを画像と一緒にローカルLLM（Lemonade Server）へ渡し、タグの補正やキャプション文を生成する |
+| **Yoshiaki-PromptTranslator** (`YoshiakiPromptTranslator`) | 日本語プロンプトをローカルLLM（Lemonade Server）へ渡し、Anima等の画像生成モデル向け英語プロンプトに変換する |
 | **Yoshiaki LoRA Caption Load** (`YoshiakiLoRACaptionLoad`) | 指定フォルダ内のPNG画像とファイル名一覧を読み込む（LoRA学習用データセット準備の入力側） |
 | **Yoshiaki LoRA Caption Save** (`YoshiakiLoRACaptionSave`) | 画像ファイル名に対応するキャプション(`.txt`)を、共通プレフィックス付きで保存する |
 | **Yoshiaki WD14 Tagger** (`YoshiakiWD14Tagger`) | 画像をWD14系ONNXモデルでタグ付けする（booruタグ形式）。タグの優先順位並べ替え・ワイルドカード対応の除外タグをサポート |
@@ -209,6 +210,48 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 
 - LAN上（またはlocalhost）で **Lemonade Server** が起動している必要があります。既定の接続先は開発時の環境に合わせたLAN内IPになっているため、`lemonade_host` / `lemonade_port` ウィジェットで自分の環境に合わせて変更してください
 - ComfyUI-Impact-Pack等のような他のカスタムノードパックへのコード依存はありません（`tags`入力にWD14 Taggerを繋ぐのはワークフロー上の運用であり、コード上の依存ではありません）
+
+---
+
+## Yoshiaki-PromptTranslator
+
+日本語で書いたプロンプトを、手元のLAN上で動く **Lemonade Server**（`YoshiakiLLMCaptionGenerator`と共通）に送り、Anima等の画像生成モデル向けの英語プロンプトに変換するノードです。翻訳不要な固定タグ（品質タグ・score系・人数/構図タグ等）と、翻訳が必要な日本語本文を別々の入力に分けているため、日本語部分だけがLLMに渡されます。
+
+```
+[Yoshiaki-PromptTranslator] → combined_prompt(STRING) → (画像生成ワークフローのプロンプト欄へ)
+                            → translated_prompt(STRING)（デバッグ・確認用）
+```
+
+**入力（抜粋）**
+
+| 名前 | 型 | 説明 |
+|---|---|---|
+| `fixed_tags` | STRING | 翻訳不要の固定タグ（品質タグ・`score_1`〜`3`・`1girl`/`solo`等）。そのまま最終出力の先頭に使われる。空欄可 |
+| `japanese_prompt` | STRING | 翻訳が必要な日本語本文 |
+| `system_prompt_file` | COMBO | [`system_prompts_translate/`](modules/yoshiaki_llm/system_prompts_translate) フォルダ内の `.txt` から選択。`YoshiakiLLMCaptionGenerator`用の`system_prompts/`とは別フォルダで、互いのファイルは混在しない |
+| `lemonade_host` / `lemonade_port` / `lemonade_api_key` | STRING/INT/STRING | Lemonade ServerのAPI接続先 |
+| `model` | COMBO | 接続先から取得したモデル一覧 |
+| `temperature` / `max_tokens` / `timeout_sec` / `max_retries` 等 | — | 生成パラメータ・リトライ回数の設定 |
+
+**出力**
+
+| 名前 | 型 | 説明 |
+|---|---|---|
+| `combined_prompt` | STRING | `fixed_tags` + 翻訳結果を結合した最終プロンプト（そのまま画像生成ワークフローへ渡せる完成形） |
+| `translated_prompt` | STRING | 翻訳結果のみ（`fixed_tags`を含まない）。デバッグ・確認用 |
+
+### 動作の仕組み
+
+- `system_prompt_file` で選んだ `.txt` の1行目（`<!-- output_mode: prompt_translation -->`）から出力モードを判定します。**変換先モデル（Anima／Krea2／Qwen-Image-Editなど）ごとに別ファイルを用意し、ここで切り替える想定**です（ノードのコード変更は不要）
+- `japanese_prompt`が空欄のときはLLMを呼ばず、`fixed_tags`をそのまま`combined_prompt`として返します（翻訳対象が無い回のパススルーとして使えます）
+- `system_prompt_file`が不正（メタデータ行が無い・`prompt_translation`以外）なときは、`fixed_tags`の内容に関わらず両出力とも空文字にします
+- 接続失敗・タイムアウト・応答フォーマット不正などを分類し、パラメータを調整しながら`max_retries`回まで自動リトライします（`YoshiakiLLMCaptionGenerator`と共通のロジック）
+- 実行結果は `modules/yoshiaki_llm/logs_translate/`（`.gitignore`対象。`YoshiakiLLMCaptionGenerator`の`logs/`とは別フォルダ）にログとして残ります。`log_prompt`をONにすると送信内容と生応答も記録されます
+
+### 前提条件
+
+- `YoshiakiLLMCaptionGenerator`と同様、LAN上（またはlocalhost）で **Lemonade Server** が起動している必要があります
+- `prompt_translation`用システムプロンプトファイルの内容そのもの（Anima版・Krea2版・Qwen-Image-Edit版）は同梱していません。`system_prompts_translate/`フォルダに`.txt`を配置するとコンボボックスに自動で表示されます
 
 ---
 
