@@ -17,29 +17,36 @@ YOUR JOB:
 
 Step 1 — Look at the image directly and verify the candidate tags against what you actually see. For each tag, keep it only if visually confirmed. Pay special attention to:
    - Person count: confirm how many characters are actually visible. If an IDENTITY_BLOCK was given but only one figure appears, caption only the one that's actually present — do not invent a second person.
-   - Character identity: if two figures ARE visible, use character_b_features (hair/eye features, not clothing) to determine which figure is character B; the other figure is character A.
+   - Character identity: if two figures ARE visible, use character_b_features (hair/eye features, not clothing) to determine which figure is character B; the other figure is character A. This is the step most prone to error — before moving on, re-look at the specific hair color/style and eye color of EACH figure one more time and re-confirm the match against character_b_features; do not rely on position, pose, or a first impression alone.
    - Accessory count: if the candidate list has multiple tags that could refer to the same physical object (e.g. "hairband" + "ribbon" + "striped ribbon"), check whether the image shows ONE item or multiple SEPARATE items per character, and correct accordingly.
    - Background description: verify whether the background is genuinely plain/simple or has visible texture, pattern, or particles — don't trust the tagger's "simple background" if you can see texture.
    - Remove any candidate tag you cannot visually confirm.
    - Add any clearly visible attribute the candidate list missed.
+   - CRITICAL — fixed physical trait tags: the candidate list will very likely contain (a) hair color, hair style, and eye color tags (e.g. "purple hair", "blunt bangs", "hime cut", "ahoge", "red eyes", "aqua eyes", "hair between eyes"), and (b) non-human anatomical/species feature tags that are part of a character's fixed body design rather than a costume piece (e.g. "horns", "wings", "tail", "pointy ears", "fangs", "dragon horns", "dragon wings", "dragon tail", "dragon girl"). Discard every one of these immediately as you go through the candidate list — do not carry them into your working "verified" set even temporarily, for either character. They are excluded in PART 1/PART 2 regardless of how visually obvious or correct they are (see Step 2).
 
 Step 2 — Output TWO parts, separated by a line "---":
 
 PART 1 — CORRECTED TAGS (Danbooru-style):
 - Comma-separated, lowercase, spaces instead of underscores.
-- This is your corrected version of the candidate list: person-count tag (e.g. "1girl" or "2girls"/"1girl, 1boy" as appropriate), pose, expression, clothing, accessories (correct count), action, background.
-- If an IDENTITY_BLOCK was given and character B is actually visible, include character_b_trigger_word as one plain tag in this list (character A's trigger word does not need to be included — the tool adds it automatically).
+- This is your corrected version of the candidate list: person-count tag (e.g. "1girl" or "2girls"/"1girl, 1boy" as appropriate), pose, expression, clothing, accessories (correct count), action, background. Use exactly ONE person-count tag reflecting the actual number of people visible. When an IDENTITY_BLOCK was given and confirmed in Step 1 (i.e. this is a two-character image from this dataset), NEVER use "multiple girls" or "multiple boys" — this dataset always shows exactly these two characters together, so the exact count tag ("2girls", "1girl, 1boy", etc.) is always correct and "multiple girls"/"multiple boys" is always wrong here, even if the candidate list suggests it.
+- If an IDENTITY_BLOCK was given and character B is actually visible, include character_b_trigger_word as one plain tag in this list, placed as the very FIRST tag you write — before the person-count tag (e.g. "2girls") and before any pose/expression/clothing/accessory/background tags (character A's trigger word does not need to be included — the tool adds it automatically at the very front, ahead of everything you write, so the final order becomes: character A's trigger word, then character_b_trigger_word, then the person-count tag, then the rest).
 - Keep this a single flat tag list as usual (do not split into per-character sub-lists or add parenthetical attributions) — this matches standard Danbooru-style multi-subject tagging.
-- Do NOT include fixed/inherent physical traits (hair color, hair style, eye color) for either character — omit these even if the candidate list has them, and even though character_b_features mentions them.
+- Do NOT include fixed/inherent physical traits for either character — this covers hair color, hair style, eye color, AND any non-human anatomical/species feature that's part of the character's fixed body design (horns, wings, tail, pointy ears, fangs, etc., as opposed to a removable costume piece). Omit all of these even if the candidate list has them, and even though character_b_features mentions some of them.
 - Do NOT include quality/aesthetic or year/era tags.
 
 PART 2 — NATURAL LANGUAGE:
 - One to three plain English sentences describing the SAME content as your corrected PART 1 — must not contradict it (same person count, same accessory count, same background characterization, etc).
 - Refer to character A using its trigger word as a proper noun, using it EXACTLY as given — do NOT prefix it with "@" or any other symbol, and do not alter it in any way.
 - If character B is visible, refer to character B the same way using character_b_trigger_word, and make clear via sentence structure which trigger word's actions/clothing/pose belong to which character (e.g. "charword_a sits beside charword_b, both wearing..." or two separate sentences), based on the identity match you made in Step 1. Do not mix up who is wearing/doing what.
-- Do NOT mention hair color, hair style, or eye color for either character, and do NOT paraphrase or otherwise leak character_b_features into the sentence — that data is for your internal identification use only.
+- Do NOT mention hair color, hair style, eye color, or fixed anatomical/species features (horns, wings, tail, pointy ears, fangs, etc.) for either character, and do NOT paraphrase or otherwise leak character_b_features into the sentence — that data is for your internal identification use only.
 - Avoid subjective/evaluative words.
 - Do NOT carry over composition/framing/meta tags (e.g. "cowboy shot", "close-up", "from above") into PART 2's prose — describe framing only if it reads naturally, otherwise omit it entirely.
+
+Step 3 — Before you output anything, self-check your draft against this list, and correct it silently if any item fails (do not mention the check in your output):
+   - Does PART 1 contain ANY hair color, hair style, eye color, or fixed anatomical/species feature word for either character (e.g. "hair", "bangs", "ahoge", "eyes", "horns", "wings", "tail", "ears", "fangs")? If yes, remove it.
+   - Does PART 2 mention hair, bangs, eye color, or fixed anatomical/species features for either character, or leak any wording from character_b_features? If yes, rewrite the sentence(s) without it.
+   - If character B is visible (an IDENTITY_BLOCK was given and confirmed in Step 1): does PART 1 contain character_b_trigger_word, exactly as given, as the very first tag you wrote (before the person-count tag, not after it, and not appended at the end)? Does PART 2 use character_b_trigger_word at least once? If either is missing or misplaced, fix it before finalizing your answer.
+   - Attribution re-check: for each clothing item, pose, and action you wrote in PART 2, re-verify it belongs to the correct trigger word by matching that figure's hair/eye features against character_b_features one final time (not by memory of your earlier guess). If you find a mismatch, swap it before finalizing.
 
 OUTPUT FORMAT (follow exactly):
 - "PART 1 — CORRECTED TAGS (Danbooru-style):" and "PART 2 — NATURAL LANGUAGE:" above are labels for YOU. Do NOT write them, or any other heading or label, in your response.
@@ -48,7 +55,7 @@ OUTPUT FORMAT (follow exactly):
 - No markdown, no bullet points, no explanation, no preamble.
 
 Example of a valid response for a two-character image (structure only — describe the actual image):
-2girls, smile, school uniform, sitting, holding hands, classroom, hikari_mz
+hikari_mz, 2girls, smile, school uniform, sitting, holding hands, classroom
 ---
 suzune_sy sits in a classroom wearing a school uniform, holding hands with hikari_mz, who sits beside her also in uniform.
 
