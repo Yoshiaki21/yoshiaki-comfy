@@ -7,8 +7,15 @@ import time
 import urllib.error
 import urllib.request
 
+# lemonade_host / lemonade_port ウィジェットの既定値であると同時に、
+# INPUT_TYPES がモデル一覧を取りに行く先でもある。INPUT_TYPES はクラスメソッドで
+# ノード個別のウィジェット値を見られないため、**ここを実在するサーバーに向けておかないと**
+# ComfyUI起動時・ブラウザF5時のモデル一覧取得が必ず失敗し、`model` コンボが
+# FALLBACK_MODEL_LABEL 1件だけになる（ノードごとの正しい一覧は js/yoshiaki-llm.js の
+# 再取得で入るが、それまでは空振りし、ログにも接続エラーが並ぶ）。
+# 2026-09-19: Lemonade Server(13305) から llama-server(8080) へ移行したため既定値を変更。
 DEFAULT_LEMONADE_HOST = "192.168.85.57"
-DEFAULT_LEMONADE_PORT = 13305
+DEFAULT_LEMONADE_PORT = 8080
 MODELS_FETCH_TIMEOUT_SEC = 3
 FALLBACK_MODEL_LABEL = "(Lemonade Server unavailable - check host/port)"
 

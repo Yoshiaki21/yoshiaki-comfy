@@ -209,6 +209,8 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 ### 前提条件
 
 - LAN上（またはlocalhost）で **Lemonade Server** または **llama-server**（llama.cpp）が起動している必要があります。既定の接続先は開発時の環境に合わせたLAN内IPになっているため、`lemonade_host` / `lemonade_port` ウィジェットで自分の環境に合わせて変更してください。サーバーの種別は `/v1/models` の応答から自動判別されるため、切り替え用の設定項目はありません
+- `model` の候補は、ノードの `lemonade_host` / `lemonade_port` を変更したとき・「Refresh Models」ボタンを押したとき・ワークフロー読み込み直後に再取得されます。再取得の結果はComfyUIのログに `[yoshiaki-comfy LLM] モデル一覧を更新しました (http://<host>:<port>, 画像対応モデルのみ): N件` のように出ます
+- ComfyUI起動時・ブラウザF5時のモデル一覧は、ノードごとの設定ではなくコード上の既定接続先（`modules/yoshiaki_llm/llm_common.py` の `DEFAULT_LEMONADE_HOST` / `DEFAULT_LEMONADE_PORT`）に対して取得されます。ここが実在しないサーバーを指していると `model` の候補がフォールバックラベル1件だけになるため、常用するサーバーに合わせておいてください
 - 本ノードは画像を必須入力とするため、モデルごとの対応modality情報を返すサーバー（llama-server）に接続した場合は、`model` コンボに画像入力対応モデルだけを表示します。Lemonade はこの情報を返さないため全モデルが表示されます
 - ComfyUI-Impact-Pack等のような他のカスタムノードパックへのコード依存はありません（`tags`入力にWD14 Taggerを繋ぐのはワークフロー上の運用であり、コード上の依存ではありません）
 

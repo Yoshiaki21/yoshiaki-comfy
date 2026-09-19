@@ -37,4 +37,15 @@ async def yoshiaki_llm_models(request):
     vision_only = bool(payload.get("vision_only"))
 
     models, ok = llm_common.resolve_model_list(host, port, api_key, vision_only=vision_only)
+
+    # 取得できたときに何もログが出ないと、「Refresh Models を押しても動いていない」ようにしか
+    # 見えない（失敗時しか llm_common 側の出力が出ないため）。押されたこと・結果・実際の接続先が
+    # 後から追えるよう、成否によらず必ず1行残す（2026-09-19 追加）。
+    scope = "画像対応モデルのみ" if vision_only else "全モデル"
+    if ok:
+        print(f"[yoshiaki-comfy LLM] モデル一覧を更新しました "
+              f"(http://{host}:{port}, {scope}): {len(models)}件")
+    else:
+        print(f"[yoshiaki-comfy LLM] モデル一覧を更新できませんでした "
+              f"(http://{host}:{port}, {scope}): {models[0]}")
     return web.json_response({"ok": ok, "models": models})

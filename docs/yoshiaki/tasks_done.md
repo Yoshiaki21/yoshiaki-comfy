@@ -24,6 +24,32 @@
 
 ---
 
+## タスク: 既定接続先を llama-server(8080) に変更し、Refresh Models の実行をログで追えるようにする
+
+- **完了日**: 2026-09-19
+- **動作確認**: ✅済み（実機ComfyUI `127.0.0.1:8188` の `/yoshiaki/llm/models` ルートと `/object_info` を直接叩いて確認。llama-server は `192.168.85.57:8080` で17件応答）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_llm/llm_common.py` : `DEFAULT_LEMONADE_PORT` を 13305 から 8080 へ変更し、この定数が INPUT_TYPES の取得先も兼ねる旨をコメントに明記
+  - `modules/yoshiaki_llm/server.py` : `/yoshiaki/llm/models` が成否によらず取得結果を1行ログに出すよう変更
+  - `CLAUDE.md` / `README.md` : 既定接続先と再取得ログについて追記
+- **変更内容**:
+  - **症状1**: ノードの `lemonade_port` に 8080 を設定しているのに、ComfyUIのログに `http://192.168.85.57:13305/v1/models` への接続エラーが並ぶ
+  - **原因**: このエラーは `INPUT_TYPES` によるもの。`INPUT_TYPES` はクラスメソッドでノード個別のウィジェット値を参照できず、必ず `DEFAULT_LEMONADE_HOST`/`DEFAULT_LEMONADE_PORT` を見に行く（ComfyUI起動時・ブラウザF5時の `/object_info` 評価）。Lemonade Server を廃止して llama-server へ移行したのに既定値が 13305 のままだったため必ず失敗していた。**ノード実行時（`generate()`）は元々ウィジェット値（8080）を使っており、こちらは正しく動いていた**
+  - **実害**: `/object_info` の `model` コンボが `['(Lemonade Server unavailable - check host/port)']` の1件だけになる。ノードごとの正しい一覧は `js/yoshiaki-llm.js` の再取得で入るが、それまでは空振りし、ログにも接続エラーが並ぶ
+  - **対応**: `DEFAULT_LEMONADE_PORT` を 8080 に変更。これにより起動時・F5時点で `model` コンボに正しい一覧（キャプションノード7件／翻訳ノード17件）が入り、接続エラーのログも出なくなることを確認
+  - **症状2**: 「Refresh Models」を押してもComfyUIのログに何も出ず、動いていないように見える
+  - **原因**: ルート `/yoshiaki/llm/models` は**取得に成功すると何もログを出さない**実装だった（失敗時のみ `llm_common` 側が出力する）。実機のルートに直接POSTして検証したところ、`vision_only=True` で7件・`False` で17件を正しく返しており、**機能自体は正常に動作していた**（ログが無いための誤認）
+  - **対応**: ルートに成否両方のログを追加し、押されたこと・実際の接続先・件数・絞り込みの有無が後から追えるようにした
+    - 成功例: `[yoshiaki-comfy LLM] モデル一覧を更新しました (http://192.168.85.57:8080, 画像対応モデルのみ): 7件`
+    - 失敗例: `[yoshiaki-comfy LLM] モデル一覧を更新できませんでした (http://192.168.85.57:8080, 全モデル): (Lemonade Server unavailable - check host/port)`
+- **備考**:
+  - `DEFAULT_LEMONADE_HOST`/`DEFAULT_LEMONADE_PORT` は**ウィジェットの既定値も兼ねる**ため、変更後に新規配置したノードは 8080 が初期値になる。既存の保存済みワークフローは各ノードが持つ値が優先されるので影響なし
+  - Python側の変更のためComfyUIの再起動が必要（ブラウザF5だけでは反映されない）
+  - 接続先がまた変わると同じ問題が再発する。`yoshiaki-wildcard.ini` と同様に ini で既定接続先を設定できるようにする案があるが、今回は要望の範囲外として未実装
+
+---
+
 ## タスク: llama-server（ルータモード）対応 — コンテキスト長の取得と画像対応モデルの絞り込み
 
 - **完了日**: 2026-09-19
