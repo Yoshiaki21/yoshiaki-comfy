@@ -3,12 +3,12 @@ import uuid
 
 from .llm_common import (
     CaptionParseError,
-    DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT,
     TRANSLATION_SYSTEM_PROMPTS_DIR, FALLBACK_SYSTEM_PROMPT_LABEL, TRANSLATION_OUTPUT_MODES,
     INVALID_PROMPT_FILE_REASON,
     DEFAULT_MAX_RETRIES, MIN_VALID_RESPONSE_CHARS,
     REASON_PARSE_FORMAT, REASON_TIMEOUT,
-    resolve_model_list, get_model_context_window, list_system_prompt_files,
+    resolve_model_list, resolve_startup_server, get_model_context_window,
+    list_system_prompt_files,
     parse_system_prompt_file, build_chat_payload, request_chat_completion,
     extract_response_text, strip_thinking, classify_parse_failure, classify_error,
     resolve_max_retries, ensure_log_dir_at, write_log, write_prompt_log,
@@ -68,9 +68,12 @@ def combine_final_prompt(fixed_tags, translated):
 class YoshiakiPromptTranslator:
     @classmethod
     def INPUT_TYPES(cls):
+        # INPUT_TYPES はクラスメソッドでノード個別のウィジェット値を見られないため、
+        # 最後に再取得へ成功した接続先（yoshiaki-llm.ini）を使う。記録が無ければ既定値。
+        startup_host, startup_port = resolve_startup_server()
         # 翻訳ノードは画像を扱わないため、画像対応モデルへの絞り込みは行わない
         # （vision_only は既定の False のまま）。
-        model_list, _ok = resolve_model_list(DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT)
+        model_list, _ok = resolve_model_list(startup_host, startup_port)
 
         system_prompt_files = list_system_prompt_files(TRANSLATION_SYSTEM_PROMPTS_DIR)
         if not system_prompt_files:
@@ -85,8 +88,8 @@ class YoshiakiPromptTranslator:
                 "japanese_prompt": ("STRING", {"multiline": True, "default": "",
                     "tooltip": "翻訳が必要な日本語本文。"}),
                 "system_prompt_file": (system_prompt_files,),
-                "lemonade_host": ("STRING", {"default": DEFAULT_LEMONADE_HOST}),
-                "lemonade_port": ("INT", {"default": DEFAULT_LEMONADE_PORT, "min": 1, "max": 65535}),
+                "lemonade_host": ("STRING", {"default": startup_host}),
+                "lemonade_port": ("INT", {"default": startup_port, "min": 1, "max": 65535}),
                 "lemonade_api_key": ("STRING", {"default": ""}),
                 "model": (model_list,),
                 "enable_thinking": ("BOOLEAN", {"default": True}),
@@ -105,6 +108,16 @@ class YoshiakiPromptTranslator:
     RETURN_NAMES = ("combined_prompt", "translated_prompt")
     FUNCTION = "translate"
     CATEGORY = "yoshiaki-comfy/LLM"
+
+    # `model` をコンボの厳密一致検証から外す（2026-09-19 追加。詳しい理由は
+    # llm_caption_node.py の同名メソッドのコメントを参照）。INPUT_TYPES は
+    # yoshiaki-llm.ini に記録された接続先の一覧しか返せないため、このノードが
+    # 別のサーバーを指していると実在するモデル名でもキュー投入時の検証で弾かれ、
+    # その出力系統が黙って捨てられる。`model` だけを宣言すること（`**kwargs` を付けると
+    # 他の入力の範囲チェック・コンボ検証まで無効になる）。
+    @classmethod
+    def VALIDATE_INPUTS(cls, model):
+        return True
 
     @classmethod
     def IS_CHANGED(cls, fixed_tags, japanese_prompt, system_prompt_file, lemonade_host,

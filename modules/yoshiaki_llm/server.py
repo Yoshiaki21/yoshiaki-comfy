@@ -43,8 +43,13 @@ async def yoshiaki_llm_models(request):
     # 後から追えるよう、成否によらず必ず1行残す（2026-09-19 追加）。
     scope = "画像対応モデルのみ" if vision_only else "全モデル"
     if ok:
+        # 取得に成功した接続先だけを記録する。次回のComfyUI起動時・ブラウザF5時・
+        # キュー投入時に INPUT_TYPES がこの値を使うため、失敗した接続先を残すと
+        # 次回の起動が壊れた値で始まってしまう（llm_common.save_last_server 参照）。
+        saved = llm_common.save_last_server(host, port)
         print(f"[yoshiaki-comfy LLM] モデル一覧を更新しました "
-              f"(http://{host}:{port}, {scope}): {len(models)}件")
+              f"(http://{host}:{port}, {scope}): {len(models)}件"
+              f"{' / 次回起動時の接続先として記録しました' if saved else ''}")
     else:
         print(f"[yoshiaki-comfy LLM] モデル一覧を更新できませんでした "
               f"(http://{host}:{port}, {scope}): {models[0]}")

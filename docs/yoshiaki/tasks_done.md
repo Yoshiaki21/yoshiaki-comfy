@@ -24,6 +24,35 @@
 
 ---
 
+## タスク: 起動時・F5時・キュー投入時の接続先をノードの設定に追従させる（yoshiaki-llm.ini ＋ VALIDATE_INPUTS）
+
+- **完了日**: 2026-09-19
+- **動作確認**: ⬜一部未確認（ini の読み書き・フォールバック・INPUT_TYPES への反映・`VALIDATE_INPUTS` の判定はローカルで検証済み。ComfyUI実機での確認は再起動後にユーザー側で実施）
+- **新規ファイル**:
+  - `yoshiaki-llm.ini` : 実行時に自動生成（リポジトリには含めない。`.gitignore`対象）
+- **修正ファイル**:
+  - `modules/yoshiaki_llm/llm_common.py` : `read_last_server()` / `resolve_startup_server()` / `save_last_server()` を追加
+  - `modules/yoshiaki_llm/llm_caption_node.py` : `INPUT_TYPES`が`resolve_startup_server()`を使うよう変更、`VALIDATE_INPUTS`を追加
+  - `modules/yoshiaki_llm/llm_prompt_translator_node.py` : 同上（未使用になった`DEFAULT_LEMONADE_*`のimportを削除）
+  - `modules/yoshiaki_llm/server.py` : 取得成功時に`save_last_server()`を呼ぶよう変更
+  - `.gitignore` : `/yoshiaki-llm.ini` と書き込み用の一時ファイルを追加
+  - `CLAUDE.md` / `README.md` : 接続先の解決順序と`model`の検証除外について追記
+- **変更内容**:
+  - **背景**: `INPUT_TYPES`はクラスメソッドでノード個別のウィジェット値を参照できず、常に`DEFAULT_LEMONADE_*`を見に行く。接続先サーバーを変えるたびにコード修正＋ComfyUI再起動が必要だった
+  - **調査で判明した本当の実害**: `INPUT_TYPES()`は起動時・F5時だけでなく**キュー投入のたびに再評価**され（`execution.py`の`validate_inputs`）、`model`の値がその一覧に含まれるか検証される。ノードが既定接続先と別のサーバーを指していると、実在するモデル名でも`Value not in list`になる。しかもこのときComfyUIは**プロンプトをHTTP 200で受理したうえで、その出力系統だけを黙って捨てる**（ログに`Output will be ignored`が出るだけ）。実機ログで確認済み。JS側の再取得はフロントエンドのウィジェットしか変えないため、この検証は救えない
+  - **対応1（ini）**: 最後にモデル一覧の取得へ成功した host/port をリポジトリ直下の`yoshiaki-llm.ini`へ記録し、`INPUT_TYPES`が ini →（無ければ）`DEFAULT_LEMONADE_*` の順で解決する。記録した値は`model`コンボの取得先とウィジェット既定値の両方に使う（新規ノードの接続先とコンボの中身が食い違わないようにするため）
+  - 書き込みは`/yoshiaki/llm/models`ルートで**取得に成功したときだけ**行う（失敗した接続先を残すと次回起動が壊れた値で始まるため）。値が変わったときのみ、一時ファイル＋`os.replace`で原子的に置き換える（複数タブ・複数ノードの同時再取得対策）。`api_key`は平文で残さないため保存しない
+  - **書き出し先を`yoshiaki-wildcard.ini`にしなかった理由**: あちらは手書きの設定ファイルで、`configparser`で書き戻すとユーザーが書いたコメント行が消える。実測したところヘッダのコメントが消滅し、インラインコメント（`; 環境依存のパス`）は値の一部として取り込まれた。自動生成ファイルは別ファイルに分離した
+  - **対応2（VALIDATE_INPUTS）**: 両ノードに`VALIDATE_INPUTS(cls, model)`（常に`True`を返す）を追加。ComfyUIは`VALIDATE_INPUTS`に宣言された入力について汎用のコンボ検証・範囲検証を行わなくなる（`execution.py`の`if x not in validate_function_inputs and not validate_has_kwargs:`。稼働中の0.35.0のソースで確認）。モデル名が実在するかは実行時にサーバーが400を返して分かるため常に通す
+  - iniが持てる接続先は1組だけなので「複数ノードが別サーバー」は救えないが、`VALIDATE_INPUTS`側がそのケースもカバーする（記録から漏れたノードでもキュー投入は弾かれない）
+- **備考**:
+  - **`VALIDATE_INPUTS`には`model`だけを宣言すること。`**kwargs`を付けると全入力の検証が無効になり、`temperature`の範囲チェックや`system_prompt_file`のコンボ検証まで効かなくなる**
+  - `resolve_startup_server()`はキュー投入のたびに ini を読むが、同じ`INPUT_TYPES`内で行う`/v1/models`のHTTP取得に比べれば無視できるためキャッシュは持たせていない（キャッシュを持つと ini を更新しても再起動まで反映されない副作用の方が大きい）
+  - ウィジェットの追加・削除・並べ替えはしていないため、保存済みワークフローの位置ずれは発生しない
+  - 未対応: `/yoshiaki/llm/models`ルートは`urllib`の同期取得を`async`ハンドラ内で行っており、接続先が応答しない場合に最大3秒ComfyUIのイベントループを止める（今回の変更以前からの挙動。今回のスコープ外）
+
+---
+
 ## タスク: 既定接続先を llama-server(8080) に変更し、Refresh Models の実行をログで追えるようにする
 
 - **完了日**: 2026-09-19

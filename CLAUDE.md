@@ -44,7 +44,8 @@
   - 接続失敗・タイムアウト・応答フォーマット不正を分類し、パラメータ調整しながら自動リトライ
   - 実行ログを`modules/yoshiaki_llm/logs/`に出力（`.gitignore`対象）
   - `model`コンボは`lemonade_host`/`lemonade_port`/`lemonade_api_key`を編集する（確定時。テキストは blur/Enter、数値は変更確定時）たびにLemonade Serverへ再問い合わせして選択肢を更新する。加えて`model`直後の「Refresh Models」ボタンで手動再取得も可能。ワークフロー読み込み直後にも一度自動実行される（2026-09-05追加。`INPUT_TYPES`はサーバー起動時／ブラウザF5時に固定の`DEFAULT_LEMONADE_HOST`/`DEFAULT_LEMONADE_PORT`でしか評価されないため、動的な追従は`js/yoshiaki-llm.js`＋`modules/yoshiaki_llm/server.py`の`/yoshiaki/llm/models`ルートで実現している）。再取得の結果は成否によらずComfyUIのログに1行出る（2026-09-19追加。それ以前は成功時に何も出ず「ボタンが効いていない」ように見えた）
-  - **既定接続先**（`DEFAULT_LEMONADE_HOST`/`DEFAULT_LEMONADE_PORT`）は`192.168.85.57:8080`（2026-09-19にLemonade Serverの13305から変更）。この定数は**ウィジェットの既定値であると同時に`INPUT_TYPES`がモデル一覧を取りに行く先**でもあるため、実在しないサーバーを指していると起動時・F5時のモデル一覧取得が必ず失敗し、`model`コンボがフォールバックラベル1件だけになる。接続先サーバーを変えたらここも合わせること
+  - **起動時・F5時・キュー投入時の接続先**（2026-09-19追加）: `INPUT_TYPES`はクラスメソッドでノード個別のウィジェット値を見られないため、**最後にモデル一覧の再取得へ成功した接続先をルート直下の`yoshiaki-llm.ini`（自動生成、`.gitignore`対象）に記録し、次回以降はそれを使う**。記録が無い／壊れている場合のみ`DEFAULT_LEMONADE_HOST`/`DEFAULT_LEMONADE_PORT`（`192.168.85.57:8080`。2026-09-19にLemonade Serverの13305から変更）へフォールバックする。記録した値は`model`コンボの取得先と`lemonade_host`/`lemonade_port`ウィジェットの既定値の両方に使われる（新規配置したノードの接続先とコンボの中身が食い違わないようにするため）。書き込むのは**取得に成功したときだけ**で、値が変わったときのみ一時ファイル＋`os.replace`で原子的に置き換える。`api_key`は平文で残さないため保存しない
+  - **`model`はコンボの厳密一致検証から除外している**（2026-09-19追加）: ComfyUIはキュー投入のたびに`INPUT_TYPES()`を再評価し、`model`の値がその一覧に含まれるかを検証する。両ノードに`VALIDATE_INPUTS(cls, model)`（常に`True`を返す）を定義して、この`model`に対する汎用検証だけを無効化している
   - ノード上の表記調整（2026-09-08、見た目のみで機能変更なし）: `tags`入力は`forceInput`の接続専用ソケットにし`display_name`を`文字列`（WD14 Taggerの出力ラベルと同じ）に、`image_names`入力も`forceInput`にし`display_name`を`Name list`（LoRA Caption Loadの出力ラベルと同じ）に、出力`RETURN_NAMES`を`caption_text`から`text`（LoRA Caption Saveの`text`入力と同じ）に変更。`reference_tags`には空欄時の説明文（`placeholder`）を設定。Python側の引数名（`tags`/`image_names`）とワークフローJSON上の入力名は変わらない
   - `reference_tags`（optional、複数行STRING、既定空欄、2026-09-06追加）: 衣装LoRA用。衣装生成時に使った基準タグ列を渡すと、`tags`と同じ規則（`resolve_tags_per_image`。1件なら全画像へブロードキャスト、複数件なら画像ごとに1:1対応）で画像に対応付けられ、システムプロンプト側（`caption_training_costume.txt`）で「WD14候補タグのうち衣装そのものを指すものを除外する」判断材料として使われる。空欄なら従来通りプロンプトへのブロック追加自体を行わず、既存の人物用ワークフロー・システムプロンプト（`caption_training_both.txt`等）への影響はゼロ
   - **llama-server（ルータモード）対応**（2026-09-19追加）: 接続先が Lemonade でも llama-server でも動く。`lemonade_host`/`lemonade_port` を llama-server に向けるだけで切り替わり、サーバー種別は `/v1/models` の応答の形から自動判別する（判別専用のリクエストは発行しない）。SSEストリーミング・`stream_options.include_usage`・`reasoning_content` 分離・`chat_template_kwargs.enable_thinking`・画像のdata URI入力はいずれも両サーバー共通で動作する
@@ -60,6 +61,9 @@
   - 2026-09-19の llama-server 対応でウィジェットの追加・削除・並べ替えは行っていないため、保存済みワークフローの位置ずれは発生しない。ただし llama-server 接続時は `model` の候補が画像対応モデルだけに減るため、画像非対応モデルを選んで保存していたワークフローは JS 側の既存ロジック（候補に無ければ先頭を選ぶ）で別モデルへ切り替わる
   - llama.cpp のコンテキスト超過の実挙動（2026-09-19 実機確認）: `max_tokens` 単体が `n_ctx` を超えてもサーバーはエラーにせず内部で丸める。HTTP 400（`exceed_context_size_error`）になるのは**プロンプト自体**が `n_ctx` を超えた場合で、`classify_error` では `http_400`＝13.2 の縮小対象外になりリトライしても回復しない。クランプの効果は「13.6 の倍増が実際のコンテキスト長で頭打ちになる」点にある
   - `status.args` の `--ctx-size` は起動時の要求値であり、VRAM不足等で llama.cpp 側が小さく確保することがある（実測: `--ctx-size 65536` に対し実際の `meta.n_ctx` は 40960）。このため `--ctx-size` 由来の値は暫定値として扱い、モデルがロードされた後の呼び出しで `meta.n_ctx` の確定値へ差し替える
+  - `VALIDATE_INPUTS`には**`model`だけを宣言すること**。`**kwargs`を付けると全入力の検証が無効になり、`temperature`の範囲チェックや`system_prompt_file`のコンボ検証まで効かなくなる（ComfyUIの判定は`execution.py`の`if x not in validate_function_inputs and not validate_has_kwargs:`）。検証に失敗したときのComfyUIの挙動は「プロンプト自体はHTTP 200で受理し、**その出力系統だけを黙って捨てる**」（ログに`Output will be ignored`が出るだけ）なので、原因に気づきにくい
+  - `yoshiaki-llm.ini`が保持できる接続先は**1組だけ**。同じクラスのノードを複数置いて別々のサーバーへ向けた場合、記録されるのは最後に再取得へ成功した1つだけになる（F5時は全ノードが再取得するため順序は非決定的）。ただし`VALIDATE_INPUTS`で`model`の検証を外してあるため、記録から漏れたノードでもキュー投入が弾かれることはない
+  - 自動生成ファイルを`yoshiaki-wildcard.ini`と同居させてはいけない。あちらは手書きの設定ファイルで、`configparser`で書き戻すとユーザーが書いたコメント行が消える（実測: ヘッダのコメントが消え、インラインコメントは値へ混入する）
   - 配布予定なし、個人利用限定
 
 ---
@@ -77,6 +81,7 @@
   - 実行ログを`modules/yoshiaki_llm/logs_translate/`に出力（`.gitignore`対象。キャプションノードの`logs/`とは別フォルダ）
   - `model`コンボの「Refresh Models」ボタン・host/port変更時の自動再取得は`YoshiakiLLMCaptionGenerator`と共通の仕組み（`js/yoshiaki-llm.js`）で本ノードにも対応済み
   - **llama-server（ルータモード）対応**（2026-09-19追加）: 共通ロジック（`llm_common.py`）側の対応により、本ノードも Lemonade / llama-server のどちらにも接続できる。ただし本ノードは画像を扱わないため、`YoshiakiLLMCaptionGenerator` で有効にしている**画像対応モデルへの絞り込みは行わず、常に全モデルが `model` コンボに出る**
+  - 起動時・F5時・キュー投入時の接続先を`yoshiaki-llm.ini`から解決する仕組みと、`VALIDATE_INPUTS(cls, model)`による`model`のコンボ検証除外も`YoshiakiLLMCaptionGenerator`と共通（詳細は同ノードの項を参照）。`yoshiaki-llm.ini`は両ノードで共有する1ファイルで、どちらのノードの再取得でも更新される
 - **備考**:
   - `class_type`は`YoshiakiPromptTranslator`、表示名は`Yoshiaki-PromptTranslator`、`CATEGORY`は`yoshiaki-comfy/LLM`
   - `system_prompts_translate/`は`YoshiakiLLMCaptionGenerator`用の`system_prompts/`とは物理的に別フォルダ。互いのコンボボックスに相手のファイルは表示されず、`output_mode`の値を間違えて逆フォルダに置いた場合も`INVALID_PROMPT_FILE`扱いで即座に失敗する（安全側）

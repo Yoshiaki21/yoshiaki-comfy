@@ -220,6 +220,10 @@ __marimo__/
 # yoshiaki-comfy: local wildcard-source override (machine-specific path)
 /yoshiaki-wildcard.ini
 
+# yoshiaki-comfy: last LLM server the model list was fetched from (auto-written at runtime)
+/yoshiaki-llm.ini
+/yoshiaki-llm.ini.*.tmp
+
 # yoshiaki-comfy: YoshiakiLLMCaptionGenerator run logs (generated at runtime)
 modules/yoshiaki_llm/logs/
 

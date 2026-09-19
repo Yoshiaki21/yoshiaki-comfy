@@ -1,3 +1,4 @@
+import configparser
 import datetime
 import http.client
 import json
@@ -16,6 +17,24 @@ import urllib.request
 # 2026-09-19: Lemonade Server(13305) から llama-server(8080) へ移行したため既定値を変更。
 DEFAULT_LEMONADE_HOST = "192.168.85.57"
 DEFAULT_LEMONADE_PORT = 8080
+
+# 最後にモデル一覧の取得へ成功した接続先の記録先（2026-09-19 追加）。
+# INPUT_TYPES はノード個別のウィジェット値を見られないため、ここに残した値を次回以降使い、
+# 無ければ上の DEFAULT_LEMONADE_* へフォールバックする（resolve_startup_server 参照）。
+#
+# yoshiaki-wildcard.ini と同居させず別ファイルにしているのは、あちらが手書きの設定ファイルで、
+# configparser で書き戻すとユーザーが書いたコメント行が消えてしまうため
+# （実測: ヘッダのコメントが消え、インラインコメントは値へ混入する）。
+# こちらは毎回テンプレートごと上書きする自動生成ファイルとして扱う。
+LAST_SERVER_INI_PATH = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..", "yoshiaki-llm.ini"))
+LAST_SERVER_INI_SECTION = "default"
+LAST_SERVER_INI_HEADER = (
+    "# yoshiaki-comfy が自動生成するファイルです。\n"
+    "# 手動で編集しても、次にモデル一覧の再取得が成功した時点で上書きされます。\n"
+    "# ComfyUI起動時・ブラウザF5時・キュー投入時に INPUT_TYPES が参照する接続先を記録します。\n"
+    "# api_key は平文で残さないため意図的に保存していません。\n"
+)
 MODELS_FETCH_TIMEOUT_SEC = 3
 FALLBACK_MODEL_LABEL = "(Lemonade Server unavailable - check host/port)"
 
@@ -161,6 +180,80 @@ class CaptionParseError(Exception):
     def __init__(self, message, category=REASON_PARSE_FORMAT):
         super().__init__(message)
         self.category = category
+
+
+def read_last_server():
+    """最後にモデル一覧の取得へ成功した接続先を (host, port) で返す。
+
+    ファイルが無い／壊れている／値が不正な場合は (None, None) を返し、
+    呼び出し側が DEFAULT_LEMONADE_* へフォールバックする。
+    INPUT_TYPES から呼ばれる＝ComfyUI起動中とキュー投入のたびに評価されるため、
+    例外は決して外に出さないこと。
+    """
+    try:
+        parser = configparser.ConfigParser()
+        parser.read(LAST_SERVER_INI_PATH, encoding="utf-8")
+        section = parser[LAST_SERVER_INI_SECTION]
+        host = section.get("host", "").strip()
+        port = int(section.get("port", "").strip())
+    except Exception:
+        return None, None
+    if not host or not 0 < port < 65536:
+        return None, None
+    return host, port
+
+
+def resolve_startup_server():
+    """INPUT_TYPES が使う接続先を (host, port) で返す。
+
+    記録があればそれを、無ければ DEFAULT_LEMONADE_* を使う。
+    ここでファイルを読むコストは毎回発生するが、同じ INPUT_TYPES の中で行う
+    /v1/models のHTTP取得に比べれば無視できるため、キャッシュは持たせていない
+    （キャッシュを持つと ini を更新しても再起動まで反映されない副作用の方が大きい）。
+    """
+    host, port = read_last_server()
+    if host is None:
+        return DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT
+    return host, port
+
+
+def save_last_server(host, port):
+    """モデル一覧の取得に成功した接続先を記録する。成功したら True。
+
+    - 取得に**成功した**ときだけ呼ぶこと。失敗した接続先を残すと、次回起動が
+      壊れた値で始まってしまう。
+    - 値が変わっていなければ書き込まない（再取得のたびにディスクへ書かないため）。
+    - 一時ファイル＋os.replace で原子的に置き換える（複数タブ・複数ノードが同時に
+      再取得しても中途半端な内容が残らないようにする）。
+    - 記録はあくまで次回起動を楽にするためのものなので、失敗しても本処理は止めない。
+    """
+    try:
+        port = int(port)
+    except (TypeError, ValueError):
+        return False
+    host = (host or "").strip()
+    if not host or not 0 < port < 65536:
+        return False
+    if (host, port) == read_last_server():
+        return False
+
+    body = (f"{LAST_SERVER_INI_HEADER}"
+            f"[{LAST_SERVER_INI_SECTION}]\n"
+            f"host = {host}\n"
+            f"port = {port}\n")
+    tmp_path = f"{LAST_SERVER_INI_PATH}.{os.getpid()}.tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(body)
+        os.replace(tmp_path, LAST_SERVER_INI_PATH)
+    except OSError as e:
+        print(f"[yoshiaki-comfy LLM] 接続先の記録に失敗しました ({LAST_SERVER_INI_PATH}): {e}")
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        return False
+    return True
 
 
 def build_lemonade_base_url(host, port):

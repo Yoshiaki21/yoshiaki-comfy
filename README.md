@@ -210,7 +210,8 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 
 - LAN上（またはlocalhost）で **Lemonade Server** または **llama-server**（llama.cpp）が起動している必要があります。既定の接続先は開発時の環境に合わせたLAN内IPになっているため、`lemonade_host` / `lemonade_port` ウィジェットで自分の環境に合わせて変更してください。サーバーの種別は `/v1/models` の応答から自動判別されるため、切り替え用の設定項目はありません
 - `model` の候補は、ノードの `lemonade_host` / `lemonade_port` を変更したとき・「Refresh Models」ボタンを押したとき・ワークフロー読み込み直後に再取得されます。再取得の結果はComfyUIのログに `[yoshiaki-comfy LLM] モデル一覧を更新しました (http://<host>:<port>, 画像対応モデルのみ): N件` のように出ます
-- ComfyUI起動時・ブラウザF5時のモデル一覧は、ノードごとの設定ではなくコード上の既定接続先（`modules/yoshiaki_llm/llm_common.py` の `DEFAULT_LEMONADE_HOST` / `DEFAULT_LEMONADE_PORT`）に対して取得されます。ここが実在しないサーバーを指していると `model` の候補がフォールバックラベル1件だけになるため、常用するサーバーに合わせておいてください
+- ComfyUI起動時・ブラウザF5時・キュー投入時のモデル一覧は、**最後に再取得へ成功した接続先**に対して取得されます。この接続先はリポジトリ直下の `yoshiaki-llm.ini`（自動生成・`.gitignore` 対象）に記録され、記録が無い場合のみ `modules/yoshiaki_llm/llm_common.py` の `DEFAULT_LEMONADE_HOST` / `DEFAULT_LEMONADE_PORT` が使われます。そのため、ノードの接続先を変えて一度モデル一覧が更新されれば、次回の起動・F5以降はその接続先が使われます（`api_key` はファイルに保存されません）
+- 同じ種類のノードを複数置いて別々のサーバーへ向けた場合、`yoshiaki-llm.ini` に残るのは最後に更新に成功した1つだけです。ただし `model` の値でキュー投入が弾かれることはありません（ノード側で `model` をコンボの厳密一致検証から外しているため）
 - 本ノードは画像を必須入力とするため、モデルごとの対応modality情報を返すサーバー（llama-server）に接続した場合は、`model` コンボに画像入力対応モデルだけを表示します。Lemonade はこの情報を返さないため全モデルが表示されます
 - ComfyUI-Impact-Pack等のような他のカスタムノードパックへのコード依存はありません（`tags`入力にWD14 Taggerを繋ぐのはワークフロー上の運用であり、コード上の依存ではありません）
 

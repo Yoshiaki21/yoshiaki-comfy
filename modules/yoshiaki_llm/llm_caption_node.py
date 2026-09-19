@@ -19,7 +19,7 @@ from .llm_common import (
     first_value, format_duration, format_response_for_log, format_response_timing,
     get_model_context_window, list_system_prompt_files, next_attempt_params,
     parse_system_prompt_file, request_chat_completion, resolve_max_retries, resolve_model_list,
-    strip_thinking, write_log, write_prompt_log,
+    resolve_startup_server, strip_thinking, write_log, write_prompt_log,
 )
 
 # 5.1 画像前処理：長辺がこの値を超える場合のみリサイズする（以下ならそのまま送信）
@@ -358,11 +358,15 @@ class YoshiakiLLMCaptionGenerator:
     # 1. 入力ウィジェット・入力ソケットの定義
     @classmethod
     def INPUT_TYPES(cls):
+        # INPUT_TYPES はクラスメソッドでノード個別のウィジェット値を見られないため、
+        # 最後に再取得へ成功した接続先（yoshiaki-llm.ini）を使う。記録が無ければ既定値。
+        # ウィジェットの既定値にも同じ値を使い、新規配置したノードの接続先と
+        # コンボの中身が食い違わないようにする。
+        startup_host, startup_port = resolve_startup_server()
         # このノードは画像を必須入力とするため、サーバーが対応modality情報を返す場合
         # （llama.cpp）は画像入力に対応したモデルだけをコンボに出す。Lemonade はその情報を
         # 返さないので従来どおり全件が出る（resolve_model_list / filter_vision_models 参照）。
-        model_list, _ok = resolve_model_list(DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT,
-                                             vision_only=True)
+        model_list, _ok = resolve_model_list(startup_host, startup_port, vision_only=True)
 
         system_prompt_files = list_system_prompt_files(SYSTEM_PROMPTS_DIR)
         if not system_prompt_files:
@@ -382,8 +386,8 @@ class YoshiakiLLMCaptionGenerator:
                 # 4.1 output_mode ウィジェットは廃止。system_prompt_file 1行目の
                 # メタデータ行（<!-- output_mode: ... -->）から自動判定する
                 "system_prompt_file": (system_prompt_files,),
-                "lemonade_host": ("STRING", {"default": DEFAULT_LEMONADE_HOST}),
-                "lemonade_port": ("INT", {"default": DEFAULT_LEMONADE_PORT, "min": 1, "max": 65535}),
+                "lemonade_host": ("STRING", {"default": startup_host}),
+                "lemonade_port": ("INT", {"default": startup_port, "min": 1, "max": 65535}),
                 "lemonade_api_key": ("STRING", {"default": ""}),
                 "model": (model_list,),
                 "enable_thinking": ("BOOLEAN", {"default": True}),
@@ -459,6 +463,26 @@ class YoshiakiLLMCaptionGenerator:
 
     # 4. ノード一覧で表示されるカテゴリ（サイドバーの分類）
     CATEGORY = "yoshiaki-comfy/LLM"
+
+    # 4.5 `model` をコンボの厳密一致検証から外す（2026-09-19 追加）。
+    #
+    # ComfyUI はキュー投入のたびに INPUT_TYPES() を再評価し、`model` の値がその一覧に
+    # 含まれるかを検証する（execution.py の validate_inputs）。INPUT_TYPES はクラスメソッドで
+    # ノード個別の接続先を見られないため、そのノードが yoshiaki-llm.ini とは別のサーバーを
+    # 指していると、実在するモデル名でも "Value not in list" となる。しかもこのとき
+    # プロンプト自体は HTTP 200 で受理され、**その出力系統だけが黙って捨てられる**
+    # （ログに "Output will be ignored" が出るだけ）ため、原因に気づきにくい。
+    #
+    # VALIDATE_INPUTS に入力名を宣言すると、ComfyUI はその入力について汎用の
+    # コンボ検証・範囲検証を行わずこちらを呼ぶ
+    # （execution.py: `if x not in validate_function_inputs and not validate_has_kwargs:`）。
+    # モデル名が実在するかは実行時にサーバーが 400 を返して分かるため、ここでは常に通す。
+    # **`model` だけを宣言すること**。`**kwargs` を付けると全入力の検証が無効になり、
+    # temperature の範囲チェックや system_prompt_file のコンボ検証まで効かなくなる。
+    # INPUT_IS_LIST = True のため model はリストで届くが、常に True を返すので参照しない。
+    @classmethod
+    def VALIDATE_INPUTS(cls, model):
+        return True
 
     # 5. 8章 キャッシュ制御。引数は INPUT_TYPES と同じ並び（optional の image_names のみ既定値あり）。
     #    INPUT_IS_LIST = True のため IS_CHANGED にも全入力がリストで渡る（execution.py の
