@@ -3,12 +3,12 @@ import uuid
 
 from .llm_common import (
     CaptionParseError,
-    DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT, FALLBACK_MODEL_LABEL,
+    DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT,
     TRANSLATION_SYSTEM_PROMPTS_DIR, FALLBACK_SYSTEM_PROMPT_LABEL, TRANSLATION_OUTPUT_MODES,
     INVALID_PROMPT_FILE_REASON,
     DEFAULT_MAX_RETRIES, MIN_VALID_RESPONSE_CHARS,
     REASON_PARSE_FORMAT, REASON_TIMEOUT,
-    fetch_lemonade_models, get_model_context_window, list_system_prompt_files,
+    resolve_model_list, get_model_context_window, list_system_prompt_files,
     parse_system_prompt_file, build_chat_payload, request_chat_completion,
     extract_response_text, strip_thinking, classify_parse_failure, classify_error,
     resolve_max_retries, ensure_log_dir_at, write_log, write_prompt_log,
@@ -68,9 +68,9 @@ def combine_final_prompt(fixed_tags, translated):
 class YoshiakiPromptTranslator:
     @classmethod
     def INPUT_TYPES(cls):
-        model_list = fetch_lemonade_models(DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT)
-        if not model_list:
-            model_list = [FALLBACK_MODEL_LABEL]
+        # 翻訳ノードは画像を扱わないため、画像対応モデルへの絞り込みは行わない
+        # （vision_only は既定の False のまま）。
+        model_list, _ok = resolve_model_list(DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT)
 
         system_prompt_files = list_system_prompt_files(TRANSLATION_SYSTEM_PROMPTS_DIR)
         if not system_prompt_files:

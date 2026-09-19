@@ -15,12 +15,18 @@ import { api } from "../../scripts/api.js";
 
 const FALLBACK_MODEL_LABEL = "(Lemonade Server unavailable - check host/port)";
 const TARGET_NODE_CLASSES = ["YoshiakiLLMCaptionGenerator", "YoshiakiPromptTranslator"];
+// The caption node takes an image, so its `model` combo should only offer models
+// that accept image input. The server can only tell when it reports per-model
+// modalities (llama.cpp does, Lemonade does not) -- see filter_vision_models in
+// modules/yoshiaki_llm/llm_common.py. The translator node is text-only and must
+// keep the full list.
+const VISION_ONLY_NODE_CLASSES = ["YoshiakiLLMCaptionGenerator"];
 
-async function fetch_models(host, port, api_key) {
+async function fetch_models(host, port, api_key, vision_only) {
 	const res = await api.fetchApi("/yoshiaki/llm/models", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ host, port, api_key }),
+		body: JSON.stringify({ host, port, api_key, vision_only }),
 	});
 	return await res.json();
 }
@@ -44,6 +50,7 @@ app.registerExtension({
 		const model_widget = node.widgets.find((w) => w.name === "model");
 		if (!host_widget || !port_widget || !model_widget) return;
 
+		const vision_only = VISION_ONLY_NODE_CLASSES.includes(node.comfyClass);
 		let refreshing = false;
 		let refresh_button = null;
 
@@ -53,7 +60,7 @@ app.registerExtension({
 			if (refresh_button) refresh_button.name = "Refreshing...";
 			const previous_value = model_widget.value;
 			try {
-				const data = await fetch_models(host_widget.value, port_widget.value, api_key_widget?.value || "");
+				const data = await fetch_models(host_widget.value, port_widget.value, api_key_widget?.value || "", vision_only);
 				const models = data.models || [];
 				if (!models.length) return;
 				model_widget.options.values = models;

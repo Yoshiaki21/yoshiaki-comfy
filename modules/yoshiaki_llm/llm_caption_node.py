@@ -10,16 +10,16 @@ from PIL import Image
 
 from .llm_common import (
     CAPTION_OUTPUT_MODES, CLAMP_LOG_NOTE, DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT,
-    DEFAULT_MAX_RETRIES, ERROR_LOG_FILENAME, FALLBACK_MODEL_LABEL, FALLBACK_SYSTEM_PROMPT_LABEL,
+    DEFAULT_MAX_RETRIES, ERROR_LOG_FILENAME, FALLBACK_SYSTEM_PROMPT_LABEL,
     FIXED_TOP_P, INVALID_PROMPT_FILE_REASON, MAX_MAX_RETRIES, MIN_MAX_RETRIES,
     MIN_VALID_RESPONSE_CHARS, REASON_INVALID_PROMPT_FILE, REASON_PARSE_FORMAT, REASON_TIMEOUT,
     RETRYABLE_EXCEPTIONS, SYSTEM_PROMPTS_DIR, CaptionParseError,
     build_chat_payload, cancel_request, classify_error, classify_parse_failure,
-    describe_params_source, estimate_prompt_tokens, extract_response_text, fetch_lemonade_models,
+    describe_params_source, estimate_prompt_tokens, extract_response_text,
     first_value, format_duration, format_response_for_log, format_response_timing,
     get_model_context_window, list_system_prompt_files, next_attempt_params,
-    parse_system_prompt_file, request_chat_completion, resolve_max_retries, strip_thinking,
-    write_log, write_prompt_log,
+    parse_system_prompt_file, request_chat_completion, resolve_max_retries, resolve_model_list,
+    strip_thinking, write_log, write_prompt_log,
 )
 
 # 5.1 画像前処理：長辺がこの値を超える場合のみリサイズする（以下ならそのまま送信）
@@ -358,9 +358,11 @@ class YoshiakiLLMCaptionGenerator:
     # 1. 入力ウィジェット・入力ソケットの定義
     @classmethod
     def INPUT_TYPES(cls):
-        model_list = fetch_lemonade_models(DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT)
-        if not model_list:
-            model_list = [FALLBACK_MODEL_LABEL]
+        # このノードは画像を必須入力とするため、サーバーが対応modality情報を返す場合
+        # （llama.cpp）は画像入力に対応したモデルだけをコンボに出す。Lemonade はその情報を
+        # 返さないので従来どおり全件が出る（resolve_model_list / filter_vision_models 参照）。
+        model_list, _ok = resolve_model_list(DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT,
+                                             vision_only=True)
 
         system_prompt_files = list_system_prompt_files(SYSTEM_PROMPTS_DIR)
         if not system_prompt_files:

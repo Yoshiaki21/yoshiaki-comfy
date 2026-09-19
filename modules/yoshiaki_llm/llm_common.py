@@ -118,8 +118,28 @@ IMAGE_PROMPT_TOKENS_ESTIMATE = 1024
 CONTEXT_SAFETY_MARGIN_TOKENS = 256
 CLAMP_LOG_NOTE = "note=clamped_by_max_context_window"
 
-# 3章のモデル一覧取得時に拾う max_context_window のキャッシュ（13.6.1のクランプに使う）
+# 3章のモデル一覧取得時に拾うコンテキスト長のキャッシュ（13.6.1のクランプに使う）
 MODEL_CONTEXT_WINDOWS = {}
+# そのうち「暫定値」（llama.cpp の --ctx-size 由来。下の _entry_context_window 参照）で
+# 埋まっているモデルID。確定値が取れるまで取得し直す対象になる。
+PROVISIONAL_CONTEXT_WINDOWS = set()
+
+# 3章 接続先サーバーの種別。/v1/models の応答の形だけで判別できるため、
+# 判別専用のリクエストは発行しない（2026-09-19 追加）。
+#   Lemonade  : エントリに max_context_window を持つ（13.6.1 のクランプが元々これを使っている）
+#   llama.cpp : owned_by=="llamacpp" / status / architecture を持ち、max_context_window は無い
+SERVER_TYPE_LEMONADE = "lemonade"
+SERVER_TYPE_LLAMACPP = "llamacpp"
+SERVER_TYPE_UNKNOWN = "unknown"
+LLAMACPP_OWNED_BY = "llamacpp"
+# llama.cpp が status.args に持つ、そのモデルの起動時コンテキスト長指定
+LLAMACPP_CTX_SIZE_ARG = "--ctx-size"
+# architecture.input_modalities に入る、画像入力に対応していることを示す値
+VISION_MODALITY = "image"
+# 画像対応モデルへの絞り込みの結果、候補が1件も無かったときにコンボへ出すラベル。
+# 「サーバーには繋がっているが条件に合うモデルが無い」ことを
+# FALLBACK_MODEL_LABEL（サーバーに繋がらない）と区別して示す。
+NO_VISION_MODEL_LABEL = "(no vision-capable model on this server)"
 
 
 class CaptionParseError(Exception):
@@ -141,9 +161,97 @@ def build_lemonade_base_url(host, port):
     return f"http://{host}:{port}/v1"
 
 
-def fetch_lemonade_models(host=DEFAULT_LEMONADE_HOST, port=DEFAULT_LEMONADE_PORT, api_key=""):
-    # ComfyUI の INPUT_TYPES 評価タイミング（起動時／ブラウザF5）でのみ呼ばれる。
-    # ここで例外を外に投げると ComfyUI 自体の起動が止まるため、失敗時は必ず空リストを返す。
+def detect_server_type(raw_entries):
+    """/v1/models の生エントリから接続先サーバーの種別を判定する。
+
+    判定専用のリクエストは投げない（この情報はモデル一覧の応答に含まれている）。
+    どちらとも判断できない場合は SERVER_TYPE_UNKNOWN を返し、呼び出し側は
+    「サーバー固有の情報は使えない」として従来どおりの動作にフォールバックする。
+    """
+    for entry in raw_entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("max_context_window") is not None:
+            return SERVER_TYPE_LEMONADE
+        if entry.get("owned_by") == LLAMACPP_OWNED_BY:
+            return SERVER_TYPE_LLAMACPP
+        if isinstance(entry.get("architecture"), dict) or isinstance(entry.get("status"), dict):
+            return SERVER_TYPE_LLAMACPP
+    return SERVER_TYPE_UNKNOWN
+
+
+def _entry_context_window(entry):
+    """13.6.1 クランプ用のコンテキスト長を1エントリから取り出す。
+
+    戻り値は (値, 確定値か)。取れなければ (None, False)。優先順位は次のとおり。
+      1. max_context_window       : Lemonade。確定値
+      2. meta.n_ctx               : llama.cpp。**ロード中のモデルにしか付かない**が、
+                                    実際に確保された値なので確定値
+      3. status.args の --ctx-size : llama.cpp。未ロードのモデルでも取れる代わりに
+                                    「起動時の要求値」でしかなく、VRAM不足等で llama.cpp 側が
+                                    小さく確保することがある（実測: --ctx-size 65536 に対し
+                                    meta.n_ctx は 40960）。過大評価すると 13.6 の増量が
+                                    実際のコンテキスト長を超える値まで伸びてクランプが
+                                    意味を失うため暫定値として扱い、モデルがロードされた後の
+                                    呼び出しで 2. の確定値へ差し替える。
+
+    【2026-09-19 llama.cpp 実機確認】max_tokens 単体が n_ctx を超えていてもサーバーは
+    エラーにせず内部で丸める。400 (`exceed_context_size_error`) になるのは
+    プロンプト自体が n_ctx を超えた場合で、これは classify_error では http_400 に分類され
+    13.2 の縮小対象にならない（リトライしても回復しない）。したがってこのクランプの効果は
+    「13.6 の倍増がサーバーに無視される値まで暴走せず、実際のコンテキスト長で頭打ちになる」
+    ことと、ログの note=clamped_by_max_context_window が実態と合うことにある。
+    """
+    window = entry.get("max_context_window")
+    if isinstance(window, int) and window > 0:
+        return window, True
+
+    meta = entry.get("meta")
+    if isinstance(meta, dict):
+        n_ctx = meta.get("n_ctx")
+        if isinstance(n_ctx, int) and n_ctx > 0:
+            return n_ctx, True
+
+    status = entry.get("status")
+    args = status.get("args") if isinstance(status, dict) else None
+    if isinstance(args, list) and LLAMACPP_CTX_SIZE_ARG in args:
+        index = args.index(LLAMACPP_CTX_SIZE_ARG) + 1
+        if index < len(args):
+            try:
+                ctx_size = int(args[index])
+            except (TypeError, ValueError):
+                return None, False
+            if ctx_size > 0:
+                return ctx_size, False
+    return None, False
+
+
+def _entry_supports_vision(entry):
+    """1エントリが画像入力に対応しているかを返す。
+
+    判断材料が無い場合は None（＝不明）を返す。Lemonade は modality 情報を返さないため
+    常に None になる。「不明」と「非対応と確定」を区別するのが重要で、
+    絞り込みでは非対応と確定したモデルだけを除外する（filter_vision_models 参照）。
+    """
+    architecture = entry.get("architecture")
+    if not isinstance(architecture, dict):
+        return None
+    modalities = architecture.get("input_modalities")
+    if not isinstance(modalities, (list, tuple)):
+        return None
+    return VISION_MODALITY in modalities
+
+
+def fetch_models_info(host=DEFAULT_LEMONADE_HOST, port=DEFAULT_LEMONADE_PORT, api_key=""):
+    """/v1/models を1回だけ取得し、(entries, server_type) を返す。
+
+    entries は {"id", "context_window", "supports_vision"} の dict のリスト。
+    ついでに 13.6.1 のクランプ用キャッシュ（MODEL_CONTEXT_WINDOWS）も更新する。
+
+    ComfyUI の INPUT_TYPES 評価タイミング（起動時／ブラウザF5）からも呼ばれる。
+    ここで例外を外に投げると ComfyUI 自体の起動が止まるため、失敗時は必ず
+    ([], SERVER_TYPE_UNKNOWN) を返す。
+    """
     url = f"{build_lemonade_base_url(host, port)}/models"
     headers = {"Accept": "application/json"}
     if api_key:
@@ -154,29 +262,75 @@ def fetch_lemonade_models(host=DEFAULT_LEMONADE_HOST, port=DEFAULT_LEMONADE_PORT
         with urllib.request.urlopen(request, timeout=MODELS_FETCH_TIMEOUT_SEC) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as e:
-        print(f"[YoshiakiLLMCaptionGenerator] Lemonade Server のモデル一覧取得に失敗しました ({url}): {e}")
-        return []
+        print(f"[yoshiaki-comfy LLM] モデル一覧の取得に失敗しました ({url}): {e}")
+        return [], SERVER_TYPE_UNKNOWN
 
-    entries = payload.get("data", []) if isinstance(payload, dict) else []
-    model_ids = []
-    for entry in entries:
-        if not isinstance(entry, dict) or not entry.get("id"):
+    raw_entries = payload.get("data", []) if isinstance(payload, dict) else []
+    server_type = detect_server_type(raw_entries)
+
+    entries = []
+    for raw in raw_entries:
+        if not isinstance(raw, dict) or not raw.get("id"):
             continue
-        model_ids.append(entry["id"])
-        # 13.6.1 の上限クランプで使うためコンテキスト長も保持しておく
-        window = entry.get("max_context_window")
-        if isinstance(window, int) and window > 0:
-            MODEL_CONTEXT_WINDOWS[entry["id"]] = window
-    return model_ids
+        model_id = raw["id"]
+        window, authoritative = _entry_context_window(raw)
+        if window:
+            MODEL_CONTEXT_WINDOWS[model_id] = window
+            if authoritative:
+                PROVISIONAL_CONTEXT_WINDOWS.discard(model_id)
+            else:
+                PROVISIONAL_CONTEXT_WINDOWS.add(model_id)
+        entries.append({
+            "id": model_id,
+            "context_window": window,
+            "supports_vision": _entry_supports_vision(raw),
+        })
+    return entries, server_type
+
+
+def filter_vision_models(entries):
+    """画像入力に対応したモデルだけへ絞り込む（判断材料があるサーバーでのみ機能する）。
+
+    supports_vision が全件 None（＝Lemonade のように modality 情報が無いサーバー）の場合は
+    絞り込みようが無いため全件をそのまま返す。判断材料があるサーバー（llama.cpp）では、
+    **非対応と確定したモデルだけ**を除外する。情報が欠けた一部のモデルを
+    取りこぼさないための方向付けで、「不明なら残す」side に倒している。
+    """
+    if not any(entry["supports_vision"] is not None for entry in entries):
+        return [entry["id"] for entry in entries]
+    return [entry["id"] for entry in entries if entry["supports_vision"] is not False]
+
+
+def resolve_model_list(host=DEFAULT_LEMONADE_HOST, port=DEFAULT_LEMONADE_PORT, api_key="",
+                       vision_only=False):
+    """`model` コンボへ出す一覧を、空だったときの表示ラベルまで含めて決める。
+
+    戻り値は (models, ok)。ok=False のときの models は表示用ラベル1件だけのリストで、
+    「サーバーに繋がらない」のか「繋がったが画像対応モデルが無い」のかを出し分ける。
+    vision_only は画像を必須とするノード（YoshiakiLLMCaptionGenerator）だけが True にする。
+    """
+    entries, _server_type = fetch_models_info(host, port, api_key)
+    if not entries:
+        return [FALLBACK_MODEL_LABEL], False
+
+    models = filter_vision_models(entries) if vision_only else [entry["id"] for entry in entries]
+    if not models:
+        return [NO_VISION_MODEL_LABEL], False
+    return models, True
 
 
 def get_model_context_window(host, port, api_key, model):
-    # 13.6.1 クランプ用の max_context_window。3章のモデル一覧取得時のキャッシュを使い、
-    # 未取得なら一度だけ取りに行く。取得できなければ None を返し、その場合クランプは行わない。
-    if model in MODEL_CONTEXT_WINDOWS:
+    # 13.6.1 クランプ用のコンテキスト長。モデル一覧取得時のキャッシュを使い、
+    # 未取得なら取りに行く。取得できなければ None を返し、その場合クランプは行わない。
+    #
+    # llama.cpp で --ctx-size からしか取れなかった暫定値（_entry_context_window 参照）は、
+    # そのモデルがロードされると meta.n_ctx で確定値が取れるようになるため、暫定値の間は
+    # 取得し直す。この関数は generate() 1回につき1回しか呼ばれない（画像ごとではない）ので、
+    # 再取得のコストは実行あたり最大1リクエストに収まる。
+    if model in MODEL_CONTEXT_WINDOWS and model not in PROVISIONAL_CONTEXT_WINDOWS:
         return MODEL_CONTEXT_WINDOWS[model]
 
-    fetch_lemonade_models(host, port, api_key)
+    fetch_models_info(host, port, api_key)
     # 取得できなかった場合も None をキャッシュし、画像ごとに再取得しにいかないようにする
     MODEL_CONTEXT_WINDOWS.setdefault(model, None)
     return MODEL_CONTEXT_WINDOWS[model]

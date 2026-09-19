@@ -8,8 +8,8 @@
 |---|---|
 | **Yoshiaki Wildcard Processor** (`YoshiakiWildcardProcessor`) | ワイルドカード構文のテキストを解決して文字列を出力する |
 | **Yoshiaki Wildcard Encode** (`YoshiakiWildcardEncode`) | ワイルドカード構文とLoRA構文を解決し、LoRA適用済みの `MODEL`/`CLIP` とCLIP条件付け(`CONDITIONING`)を出力する |
-| **Yoshiaki-LLMCaptionGenerator** (`YoshiakiLLMCaptionGenerator`) | WD14 Tagger等が出力したタグを画像と一緒にローカルLLM（Lemonade Server）へ渡し、タグの補正やキャプション文を生成する |
-| **Yoshiaki-PromptTranslator** (`YoshiakiPromptTranslator`) | 日本語プロンプトをローカルLLM（Lemonade Server）へ渡し、Anima等の画像生成モデル向け英語プロンプトに変換する |
+| **Yoshiaki-LLMCaptionGenerator** (`YoshiakiLLMCaptionGenerator`) | WD14 Tagger等が出力したタグを画像と一緒にローカルLLM（Lemonade Server / llama-server）へ渡し、タグの補正やキャプション文を生成する |
+| **Yoshiaki-PromptTranslator** (`YoshiakiPromptTranslator`) | 日本語プロンプトをローカルLLM（Lemonade Server / llama-server）へ渡し、Anima等の画像生成モデル向け英語プロンプトに変換する |
 | **Yoshiaki LoRA Caption Load** (`YoshiakiLoRACaptionLoad`) | 指定フォルダ内のPNG画像とファイル名一覧を読み込む（LoRA学習用データセット準備の入力側） |
 | **Yoshiaki LoRA Caption Save** (`YoshiakiLoRACaptionSave`) | 画像ファイル名に対応するキャプション(`.txt`)を、共通プレフィックス付きで保存する |
 | **Yoshiaki WD14 Tagger** (`YoshiakiWD14Tagger`) | 画像をWD14系ONNXモデルでタグ付けする（booruタグ形式）。タグの優先順位並べ替え・ワイルドカード対応の除外タグをサポート |
@@ -177,7 +177,7 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 
 ## Yoshiaki-LLMCaptionGenerator
 
-画像とWD14 Taggerなどのタグ文字列を、手元のLAN上で動く **Lemonade Server**（AMD製のローカルLLM推論サーバー、OpenAI互換API）に送り、タグの補正やキャプション文（自然言語の説明文）をLLMに生成させるノードです。
+画像とWD14 Taggerなどのタグ文字列を、手元のLAN上で動くローカルLLM推論サーバーに送り、タグの補正やキャプション文（自然言語の説明文）をLLMに生成させるノードです。接続先は **Lemonade Server**（AMD製、OpenAI互換API）と **llama-server**（llama.cpp。ルータモードで動作確認済み）のどちらでも構いません。
 
 ```
 [LoadImage] → [WD14Tagger] → 文字列(STRING) ┐
@@ -194,8 +194,8 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 | `reference_tags`（任意） | STRING | 衣装LoRA用。`caption_training_costume.txt`を使うときに、可変にしたい要素の生成時に使ったプロンプトを入力する（空欄時はテキストエリア内に「system pronptのcaption_training_costumeを使用する際に使用し、可変したい要素の生成時に使ったプロントを入力」と薄く表示される）。`caption_training_both_2char.txt`使用時は、2人目キャラクターの識別情報欄として転用する（詳細は下記「2人キャラクターのキャプション生成」参照） |
 | `trigger_word` | STRING | 学習用データセットのトリガーワード（任意。指定するとタグ列の先頭に必ず挿入される） |
 | `system_prompt_file` | COMBO | [`system_prompts/`](modules/yoshiaki_llm/system_prompts) フォルダ内の `.txt` から選択 |
-| `lemonade_host` / `lemonade_port` / `lemonade_api_key` | STRING/INT/STRING | Lemonade ServerのAPI接続先 |
-| `model` | COMBO | 接続先から取得したモデル一覧 |
+| `lemonade_host` / `lemonade_port` / `lemonade_api_key` | STRING/INT/STRING | LLMサーバーのAPI接続先（Lemonade Server / llama-server のどちらでも可。ウィジェット名は保存済みワークフローとの互換のため`lemonade_`のまま） |
+| `model` | COMBO | 接続先から取得したモデル一覧。**llama-server接続時は画像入力に対応したモデルのみ**が表示される |
 | `temperature` / `max_tokens` / `timeout_sec` / `max_retries` 等 | — | 生成パラメータ・リトライ回数の設定 |
 
 **出力**: `text` (STRING、旧名`caption_text`) — `image`と同じ枚数・同じ順序のキャプション文字列リスト。ラベルは接続先の`Yoshiaki LoRA Caption Save`の`text`入力に合わせている
@@ -208,7 +208,8 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 
 ### 前提条件
 
-- LAN上（またはlocalhost）で **Lemonade Server** が起動している必要があります。既定の接続先は開発時の環境に合わせたLAN内IPになっているため、`lemonade_host` / `lemonade_port` ウィジェットで自分の環境に合わせて変更してください
+- LAN上（またはlocalhost）で **Lemonade Server** または **llama-server**（llama.cpp）が起動している必要があります。既定の接続先は開発時の環境に合わせたLAN内IPになっているため、`lemonade_host` / `lemonade_port` ウィジェットで自分の環境に合わせて変更してください。サーバーの種別は `/v1/models` の応答から自動判別されるため、切り替え用の設定項目はありません
+- 本ノードは画像を必須入力とするため、モデルごとの対応modality情報を返すサーバー（llama-server）に接続した場合は、`model` コンボに画像入力対応モデルだけを表示します。Lemonade はこの情報を返さないため全モデルが表示されます
 - ComfyUI-Impact-Pack等のような他のカスタムノードパックへのコード依存はありません（`tags`入力にWD14 Taggerを繋ぐのはワークフロー上の運用であり、コード上の依存ではありません）
 
 ### 2人キャラクターのキャプション生成（`caption_training_both_2char.txt`）
@@ -245,7 +246,7 @@ suzune_sy, hikari_mz, 2girls, smiling, sitting on a bench, park background. suzu
 
 ## Yoshiaki-PromptTranslator
 
-日本語で書いたプロンプトを、手元のLAN上で動く **Lemonade Server**（`YoshiakiLLMCaptionGenerator`と共通）に送り、Anima等の画像生成モデル向けの英語プロンプトに変換するノードです。翻訳不要な固定タグ（品質タグ・score系・人数/構図タグ等）と、翻訳が必要な日本語本文を別々の入力に分けているため、日本語部分だけがLLMに渡されます。
+日本語で書いたプロンプトを、手元のLAN上で動くローカルLLM推論サーバー（`YoshiakiLLMCaptionGenerator`と共通。Lemonade Server / llama-server のどちらでも可）に送り、Anima等の画像生成モデル向けの英語プロンプトに変換するノードです。翻訳不要な固定タグ（品質タグ・score系・人数/構図タグ等）と、翻訳が必要な日本語本文を別々の入力に分けているため、日本語部分だけがLLMに渡されます。
 
 ```
 [Yoshiaki-PromptTranslator] → combined_prompt(STRING) → (画像生成ワークフローのプロンプト欄へ)
@@ -259,8 +260,8 @@ suzune_sy, hikari_mz, 2girls, smiling, sitting on a bench, park background. suzu
 | `fixed_tags` | STRING | 翻訳不要の固定タグ（品質タグ・`score_1`〜`3`・`1girl`/`solo`等）。そのまま最終出力の先頭に使われる。空欄可 |
 | `japanese_prompt` | STRING | 翻訳が必要な日本語本文 |
 | `system_prompt_file` | COMBO | [`system_prompts_translate/`](modules/yoshiaki_llm/system_prompts_translate) フォルダ内の `.txt` から選択。`YoshiakiLLMCaptionGenerator`用の`system_prompts/`とは別フォルダで、互いのファイルは混在しない |
-| `lemonade_host` / `lemonade_port` / `lemonade_api_key` | STRING/INT/STRING | Lemonade ServerのAPI接続先 |
-| `model` | COMBO | 接続先から取得したモデル一覧 |
+| `lemonade_host` / `lemonade_port` / `lemonade_api_key` | STRING/INT/STRING | LLMサーバーのAPI接続先（Lemonade Server / llama-server のどちらでも可） |
+| `model` | COMBO | 接続先から取得したモデル一覧（本ノードは画像を扱わないため絞り込みはせず全件表示） |
 | `temperature` / `max_tokens` / `timeout_sec` / `max_retries` 等 | — | 生成パラメータ・リトライ回数の設定 |
 
 **出力**
@@ -280,7 +281,7 @@ suzune_sy, hikari_mz, 2girls, smiling, sitting on a bench, park background. suzu
 
 ### 前提条件
 
-- `YoshiakiLLMCaptionGenerator`と同様、LAN上（またはlocalhost）で **Lemonade Server** が起動している必要があります
+- `YoshiakiLLMCaptionGenerator`と同様、LAN上（またはlocalhost）で **Lemonade Server** または **llama-server** が起動している必要があります
 - `prompt_translation`用システムプロンプトファイルの内容そのもの（Anima版・Krea2版・Qwen-Image-Edit版）は同梱していません。`system_prompts_translate/`フォルダに`.txt`を配置するとコンボボックスに自動で表示されます
 
 ---
@@ -341,7 +342,7 @@ LoRA学習用データセットの準備（画像 + キャプションのペア�
 pip install -r requirements.txt
 ```
 
-依存パッケージは `pyyaml`, `numpy`, `Pillow`, `onnxruntime`, `tqdm` です。`pyyaml`/`numpy`/`Pillow`はComfyUI本体が通常インストール済みですが、`onnxruntime`（`Yoshiaki WD14 Tagger`が使用）と`tqdm`（モデルダウンロードの進捗表示用）は追加インストールが必要な場合があります。`YoshiakiLLMCaptionGenerator` はLemonade Serverとの通信に標準ライブラリの`urllib`/`http.client`のみを使っており、追加のSDK等は不要です。
+依存パッケージは `pyyaml`, `numpy`, `Pillow`, `onnxruntime`, `tqdm` です。`pyyaml`/`numpy`/`Pillow`はComfyUI本体が通常インストール済みですが、`onnxruntime`（`Yoshiaki WD14 Tagger`が使用）と`tqdm`（モデルダウンロードの進捗表示用）は追加インストールが必要な場合があります。`YoshiakiLLMCaptionGenerator` はLLMサーバー（Lemonade Server / llama-server）との通信に標準ライブラリの`urllib`/`http.client`のみを使っており、追加のSDK等は不要です。
 
 ---
 

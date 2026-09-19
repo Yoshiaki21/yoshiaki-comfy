@@ -24,6 +24,37 @@
 
 ---
 
+## タスク: llama-server（ルータモード）対応 — コンテキスト長の取得と画像対応モデルの絞り込み
+
+- **完了日**: 2026-09-19
+- **動作確認**: ✅済み（実機 llama-server ルータ `127.0.0.1:8080`（build `b1-8172e65`、モデル17件）に対してノードの実コードで検証。Lemonade はサーバー停止中のため応答形状のモックで後方互換を確認）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_llm/llm_common.py` : サーバー種別判別・コンテキスト長のフォールバック・画像対応モデル絞り込みを追加（`fetch_lemonade_models`を`fetch_models_info`/`resolve_model_list`へ置き換え）
+  - `modules/yoshiaki_llm/llm_caption_node.py` : `INPUT_TYPES`を`resolve_model_list(vision_only=True)`に変更
+  - `modules/yoshiaki_llm/llm_prompt_translator_node.py` : `INPUT_TYPES`を`resolve_model_list()`（絞り込みなし）に変更
+  - `modules/yoshiaki_llm/server.py` : `/yoshiaki/llm/models`ルートが`vision_only`を受け取るように変更、参照先を`llm_caption_node`から`llm_common`へ
+  - `js/yoshiaki-llm.js` : キャプションノードのときだけ`vision_only`を送るように変更
+  - `CLAUDE.md` : 両ノードの仕様に llama-server 対応・画像対応モデル絞り込み・コンテキスト長の取得方法を追記
+  - `README.md` : 接続先が Lemonade 限定という記述を Lemonade / llama-server の両対応に修正（9箇所）
+- **変更内容**:
+  - **前提調査**: llm_common が使うエンドポイントは`/v1/models`と`/v1/chat/completions`の2つだけで、ペイロードは純粋なOpenAI互換。実機検証の結果、SSEストリーミング・`stream_options.include_usage`・`reasoning_content`分離・`chat_template_kwargs.enable_thinking`・画像のdata URI入力はすべて llama-server でも**無修正で動作**した（`enable_thinking`は True で reasoning 3864字／False で 0字と実際に効く）。キャンセルも両サーバーともTCP切断で効くことを確認済みのため、13.1/13.5 まわりは未変更
+  - **コンテキスト長（本題1）**: llama-server は Lemonade の`max_context_window`を返さない。`_entry_context_window()`を追加し `max_context_window`（Lemonade・確定値）→ `meta.n_ctx`（llama.cpp・**ロード中のモデルのみ**・確定値）→ `status.args`の`--ctx-size`（llama.cpp・全モデルで取れるが起動時の要求値＝**暫定値**）の順で解決する
+  - `--ctx-size`は過大なことがある（実測: `shisa-8b-ja` は`--ctx-size 65536`に対し実際の`meta.n_ctx`は 40960）。そのため暫定値は`PROVISIONAL_CONTEXT_WINDOWS`に記録し、`get_model_context_window()`が暫定値の間だけ取得し直して、モデルがロードされた後に確定値へ差し替える。この関数は`generate()`1回につき1回しか呼ばれない（画像ごとではない）ので再取得コストは実行あたり最大1リクエスト
+  - 効果: `n_ctx=16384`のモデルで 13.6 の倍増が `8192 → 14928(クランプ) → 以降頭打ち` になる（修正前は `8192 → 16384 → 32768 → 65536` と無制限に増加していた）
+  - **画像対応モデルの絞り込み（本題2）**: `architecture.input_modalities`に`image`を含むモデルだけを`model`コンボに出す。**画像を必須入力とする`YoshiakiLLMCaptionGenerator`のみ**で有効にし、`YoshiakiPromptTranslator`は従来どおり全件（実測17件中7件に絞られ、翻訳ノードは17件のまま）
+  - Lemonade は modality 情報を返さないため`filter_vision_models()`は絞り込みを行わず全件を返す。判定は「全件が不明なら絞り込まない」「判断材料があるサーバーでは**非対応と確定したモデルだけ**を除外する（不明は残す）」という安全側の方向付け
+  - **サーバー種別判別**: `detect_server_type()`を追加。判別専用のリクエストは投げず、既に取得している`/v1/models`の応答形状だけで判定する（`max_context_window`あり→Lemonade、`owned_by=="llamacpp"`／`status`／`architecture`あり→llama.cpp）。実機で他の判別材料（`/props`の`role`、`/api/v1/health`が404）も確認したが、Lemonade 側の応答が未確認のため主判別には使っていない
+  - 繋がったが画像対応モデルが0件の場合は`NO_VISION_MODEL_LABEL`（`(no vision-capable model on this server)`）を出し、サーバーに繋がらない場合の`FALLBACK_MODEL_LABEL`と区別する
+- **備考**:
+  - **ウィジェットの追加・削除・並べ替えはしていない**ため、保存済みワークフローの`widgets_values`の位置ずれは発生しない（`INPUT_TYPES`の`required`のキー順が変更前と同一であることをテストで確認済み）
+  - ただし llama-server 接続時にキャプションノードの`model`候補が減るため、**画像非対応モデルを選んで保存していたワークフローは、JS側の既存ロジック（候補に無ければ先頭を選ぶ）により別モデルへ切り替わる**。キャプションノードは画像必須なのでどのみち動かない組み合わせだが、挙動としては把握しておくこと
+  - **llama.cpp のコンテキスト超過時の実挙動（実測）**: `max_tokens`単体が`n_ctx`を超えていてもサーバーはエラーにせず内部で丸める。HTTP 400（`exceed_context_size_error`）になるのは**プロンプト自体**が`n_ctx`を超えた場合で、これは`classify_error`では`http_400`＝13.2 の縮小対象外になりリトライしても回復しない。したがって今回のクランプの効果は「13.6 の倍増が実際のコンテキスト長で頭打ちになる」ことと、ログの`note=clamped_by_max_context_window`が実態と合うことにある
+  - Lemonade 実機での再確認は未実施（検証時サーバー停止中）。モック（`max_context_window`を持つ応答）では判別・コンテキスト長取得・絞り込みなしの動作がいずれも従来どおりであることを確認済み
+  - `fetch_lemonade_models()`は全呼び出し元を`fetch_models_info()`/`resolve_model_list()`へ移行したため削除した
+
+---
+
 ## タスク: YoshiakiLLMCaptionGenerator のソケット表記を接続先・接続元と揃える（見た目のみ）
 
 - **完了日**: 2026-09-08
