@@ -15,6 +15,7 @@ import os
 import shutil
 from PIL import Image
 from PIL import ImageOps
+import pillow_jxl  # noqa: F401  # 【追加】JXLをPillowに登録（save_jxlの読込順に依存しないため）
 import numpy as np
 import torch
 import comfy
@@ -28,7 +29,8 @@ class _cstr_fallback:
 cstr = _cstr_fallback()
 # --- patch end ---
 
-IMAGE_EXTENSIONS = ('.png',)
+#IMAGE_EXTENSIONS = ('.png',)
+IMAGE_EXTENSIONS = ('.png', '.jxl')
 CAPTION_EXTENSION = '.txt'
 
 
@@ -212,7 +214,8 @@ class YoshiakiLoRACaptionLoad:
         # 大文字拡張子（.PNG）やドット始まりのファイルが片方にしか入らず、件数がずれていた。
         file_names = list_image_files(path)
         if len(file_names) == 0:
-            raise FileNotFoundError(f"No PNG images found in path '{path}'.")
+            # 【変更】メッセージを対応形式に合わせる
+            raise FileNotFoundError(f"No PNG/JXL images found in path '{path}'.")
 
         text = '\n'.join(file_names)
 
