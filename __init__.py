@@ -61,6 +61,17 @@ except ImportError as e:
     logging.error(f"[yoshiaki-comfy] YoshiakiSaveImageJXL disabled: {e} (pip install pillow-jxl-plugin)")
     _SAVE_JXL_NODE_CLASS_MAPPINGS, _SAVE_JXL_NODE_DISPLAY_NAME_MAPPINGS = {}, {}
 
+# YoshiakiLoadImageJXL: same rule as the save node (skipped alone without pillow-jxl-plugin).
+try:
+    from yoshiaki_load_jxl.load_jxl import (  # noqa: E402
+        NODE_CLASS_MAPPINGS as _LOAD_JXL_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as _LOAD_JXL_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    import yoshiaki_load_jxl.server  # noqa: F401, E402  (registers the /yoshiaki/jxl/* routes)
+except ImportError as e:
+    logging.error(f"[yoshiaki-comfy] YoshiakiLoadImageJXL disabled: {e} (pip install pillow-jxl-plugin)")
+    _LOAD_JXL_NODE_CLASS_MAPPINGS, _LOAD_JXL_NODE_DISPLAY_NAME_MAPPINGS = {}, {}
+
 NODE_CLASS_MAPPINGS = {
     **_WILDCARD_NODE_CLASS_MAPPINGS,
     **_LLM_NODE_CLASS_MAPPINGS,
@@ -68,6 +79,7 @@ NODE_CLASS_MAPPINGS = {
     **_LORACAPTION_NODE_CLASS_MAPPINGS,
     **_WD14TAGGER_NODE_CLASS_MAPPINGS,
     **_SAVE_JXL_NODE_CLASS_MAPPINGS,
+    **_LOAD_JXL_NODE_CLASS_MAPPINGS,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     **_WILDCARD_NODE_DISPLAY_NAME_MAPPINGS,
@@ -76,6 +88,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_LORACAPTION_NODE_DISPLAY_NAME_MAPPINGS,
     **_WD14TAGGER_NODE_DISPLAY_NAME_MAPPINGS,
     **_SAVE_JXL_NODE_DISPLAY_NAME_MAPPINGS,
+    **_LOAD_JXL_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 nodes.EXTENSION_WEB_DIRS["yoshiaki-comfy"] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'js')

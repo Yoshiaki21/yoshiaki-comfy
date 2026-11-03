@@ -14,6 +14,7 @@
 | **Yoshiaki LoRA Caption Save** (`YoshiakiLoRACaptionSave`) | 画像ファイル名に対応するキャプション(`.txt`)を、共通プレフィックス付きで保存する |
 | **Yoshiaki WD14 Tagger** (`YoshiakiWD14Tagger`) | 画像をWD14系ONNXモデルでタグ付けする（booruタグ形式）。タグの優先順位並べ替え・ワイルドカード対応の除外タグをサポート |
 | **Yoshiaki Save Image JXL** (`YoshiakiSaveImageJXL`) | save-image-extended と同じ方式でファイル名・フォルダを決めて JPEG XL（.jxl）で保存し、再生成に必要なパラメータ（seed・プロンプト・サンプラー・モデル・全ノードの値）をXMPに書き込む |
+| **Yoshiaki Load Image JXL** (`YoshiakiLoadImageJXL`) | inputフォルダの JPEG XL（.jxl）を読み込み、`Yoshiaki Save Image JXL` がXMPに書いたプロンプト・seed・サンプラー設定をノード上に表示し、出力ソケットからも取り出せる |
 
 `YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack) の `ImpactWildcardProcessor` / `ImpactWildcardEncode` を、この2ノードだけ使う用途に切り出して単独パック化したものです。`YoshiakiLLMCaptionGenerator` はもともと別リポジトリ [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) として作っていたノードをこちらに統合したものです（当時の開発履歴は [docs/yoshiaki/tasks_done.LLM.md](docs/yoshiaki/tasks_done.LLM.md)、詳細仕様は [docs/yoshiaki/LLM_Caption_Node_指示書.md](docs/yoshiaki/LLM_Caption_Node_指示書.md) 参照）。`YoshiakiLoRACaptionLoad` / `YoshiakiLoRACaptionSave` は自分のフォーク [Image-Captioning-in-ComfyUI](https://github.com/Yoshiaki21/Image-Captioning-in-ComfyUI)（本家: [LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI)）から統合したものです。いずれもノード名・Pythonパッケージ名を独自のものに変更しているため、元のリポジトリと同一環境に共存インストールしても衝突しません。
 
@@ -446,6 +447,39 @@ XMPに記録する「主seed」「主サンプラー」をノードIDで指定�
 
 ---
 
+## Yoshiaki Load Image JXL
+
+標準の `Load Image` と同じ使い勝手で **.jxl だけ**を読み込むノード。`Yoshiaki Save Image JXL` がXMPに書き込んだ再生成用の情報を、**実行しなくても**ファイルを選んだ時点でノード上に表示します。詳細仕様は [docs/yoshiaki/JXL_Load_Node_指示書.md](docs/yoshiaki/JXL_Load_Node_指示書.md)。
+
+| 入力 | 内容 |
+|---|---|
+| `image` | ComfyUIの `input` フォルダ内の .jxl（サブフォルダも含む。値は `chara_a/0001.jxl` のような相対パス） |
+
+| 出力 | 内容 |
+|---|---|
+| `IMAGE` / `MASK` | 画像とマスク（標準 Load Image と同じ規則。アルファなしのときMASKは64×64の全0） |
+| `positive_text` / `negative_text` | プロンプト（無ければ空文字） |
+| `seed` / `steps` / `cfg` | 主seed・`sampler.steps`・`sampler.cfg`（無ければ 0 / 0 / 0.0） |
+| `note` | 保存時の `xmp_note` |
+| `parameters_json` | `ycomfy:Parameters` の文字列そのまま（全ノードの値を含む） |
+
+ノード上には「JXLをアップロード」ボタン、プレビュー、ポジティブ／ネガティブ／概要（seed・サンプラー・サイズ・モデル・作成日時など）の読み取り専用欄が出ます。
+
+### つなぎ方（再生成）
+
+- `seed` → KSampler の `seed`（2^53を超えるseedもそのまま一致する）
+- `positive_text` / `negative_text` → `CLIPTextEncode` の `text`（ウィジェットを入力に変換して接続）
+- `sampler_name` / `scheduler` はKSamplerのコンボと型が合わないため出力ソケットにしていない。概要欄か `parameters_json` で確認する
+
+**注意点**:
+- プレビューはサーバー側でWebPに変換して返すため、ブラウザのJPEG XL対応は不要
+- 表示用の欄は `widgets_values` に保存されない（保存済みワークフローの `image` の位置はずれない）
+- メタデータが無い・壊れている場合もエラーにはならず、「XMPメタデータなし」（`Parameters` が無いときは「簡易メタデータ（Parametersなし）」）と表示して既定値を出力する
+- pillow-jxl-plugin 1.3.8 の制約: アニメーションJXLは1フレーム目だけ、16bitのRGBは8bitに丸められて読み込まれる（16bitグレースケールは16bitのまま読める）
+- outputフォルダから直接は読めない。inputフォルダへコピーするか、アップロードボタンを使う
+
+---
+
 ## インストール
 
 このリポジトリをComfyUIの `custom_nodes` フォルダ内にクローン（またはシンボリックリンク）し、以下を実行してください。
@@ -454,7 +488,7 @@ XMPに記録する「主seed」「主サンプラー」をノードIDで指定�
 pip install -r requirements.txt
 ```
 
-依存パッケージは `pyyaml`, `numpy`, `Pillow`, `onnxruntime`, `tqdm`, `pillow-jxl-plugin` です。`pillow-jxl-plugin`（`Yoshiaki Save Image JXL`が使用）はComfyUI本体には含まれないため、通常は追加インストールが必要です（Windows / Linux ともにビルド済みwheelあり）。`pyyaml`/`numpy`/`Pillow`はComfyUI本体が通常インストール済みですが、`onnxruntime`（`Yoshiaki WD14 Tagger`が使用）と`tqdm`（モデルダウンロードの進捗表示用）は追加インストールが必要な場合があります。`YoshiakiLLMCaptionGenerator` はLLMサーバー（Lemonade Server / llama-server）との通信に標準ライブラリの`urllib`/`http.client`のみを使っており、追加のSDK等は不要です。
+依存パッケージは `pyyaml`, `numpy`, `Pillow`, `onnxruntime`, `tqdm`, `pillow-jxl-plugin` です。`pillow-jxl-plugin`（`Yoshiaki Save Image JXL` / `Yoshiaki Load Image JXL`が使用）はComfyUI本体には含まれないため、通常は追加インストールが必要です（Windows / Linux ともにビルド済みwheelあり）。`pyyaml`/`numpy`/`Pillow`はComfyUI本体が通常インストール済みですが、`onnxruntime`（`Yoshiaki WD14 Tagger`が使用）と`tqdm`（モデルダウンロードの進捗表示用）は追加インストールが必要な場合があります。`YoshiakiLLMCaptionGenerator` はLLMサーバー（Lemonade Server / llama-server）との通信に標準ライブラリの`urllib`/`http.client`のみを使っており、追加のSDK等は不要です。
 
 ---
 

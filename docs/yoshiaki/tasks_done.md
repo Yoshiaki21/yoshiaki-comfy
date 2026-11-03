@@ -24,6 +24,58 @@
 
 ---
 
+## タスク: YoshiakiLoadImageJXL（JPEG XL読み込み＋XMPパラメータ表示）ノードの新規作成
+
+- **完了日**: 2026-11-03
+- **動作確認**: ✅一部済み（podmanコンテナ`comfyui-igpu`で単体テスト155項目合格、実機ComfyUIでルート・実行を確認。**ブラウザ上のJS（プレビュー・表示欄・アップロードボタン）は未確認**、Windows版も未確認）
+- **新規ファイル**:
+  - `modules/yoshiaki_load_jxl/__init__.py` : パッケージ
+  - `modules/yoshiaki_load_jxl/jxl_boxes.py` : ISOBMFFボックス走査によるXMP取り出し（指示書4.1）
+  - `modules/yoshiaki_load_jxl/xmp_read.py` : XMP解析と正規化（4.2〜4.4）。ComfyUI非依存
+  - `modules/yoshiaki_load_jxl/files.py` : .jxl一覧（2.1）とinputフォルダ外を拒否するパス解決（ノードとルートで共通）
+  - `modules/yoshiaki_load_jxl/load_jxl.py` : ノード本体（`NODE_VERSION = "1.0.0"`）
+  - `modules/yoshiaki_load_jxl/server.py` : `/yoshiaki/jxl/list`・`/preview`・`/info`（LRUキャッシュ付き）
+  - `js/yoshiaki-load-jxl.js` : アップロードボタン・プレビュー・読み取り専用表示欄
+  - `docs/yoshiaki/JXL_Load_Node_指示書.md` : 仕様書（リポジトリ直下から指示書記載の配置先へ移動）
+- **修正ファイル**:
+  - `__init__.py` : ノードとルートの登録。`pillow-jxl-plugin`が無ければこのノードだけ無効化
+  - `README.md` / `CLAUDE.md` : 本ノードの説明を追記
+- **タスク0（確認結果、コンテナ: ComfyUI 0.43.0 / frontend 1.57.6 / pillow-jxl-plugin 1.3.8 / Pillow 12.3.0 / Python 3.12.3）**:
+  - 標準`LoadImage`は現在まず`InputImpl.VideoFromFile`（PyAV）で読み、失敗時に`ImageSequence`へフォールバックする。**アルファなしのMASKはどちらの経路でも64×64の全0**（指示書の「画像と同じサイズ」という想定と異なる）→ 標準に合わせて64×64にした。`IS_CHANGED`はSHA-256、`VALIDATE_INPUTS`は`exists_annotated_filepath`のみ
+  - `POST /upload/image`は拡張子を検査しない。`.jxl`をそのまま受け付けることを実機で確認 → 自作のアップロードルートは作っていない
+  - pillow-jxl-plugin 1.3.8は**アニメーション非対応**（`cjxl`で作った3フレームのJXLでも`n_frames == 1`、`ImageSequence`も1フレーム。プラグインのソースにも`# FIXME animation JXL hasn't supported yet`）。保存側も`save_all`非対応（`KeyError: 'JXL'`）
+  - 16bitのモード: グレースケールは`I;16`（0〜65535のまま）、グレー＋アルファは`LA`（8bit）、**RGB/RGBAは8bitの`RGB`/`RGBA`に丸められる**（Pillowに16bit RGBのモードが無いため）。テスト用ファイルは`magick`で作った16bit PNGを`cjxl -d 0`で変換
+  - `F`モード（float32グレー）もロスレスで往復でき、0〜1にクリップされることを確認
+- **変更内容**:
+  - XMPの取り出しは`Decoder()`を使わず、`seek`でボックスを飛ばして`xml `ボックスの中身だけを読む。`brob`は`brotli`がある場合のみ（`xml `ボックスが無いときだけ使う）
+  - XMPは名前空間URIで検索（接頭辞を変えたXMPでも読めることを確認）。`rdf:Description`が複数でも全部から探し、属性形式のプロパティも読む
+  - `status`の判定: `Parameters`が読めて`schema`一致・`version == 1` → `ok`、`version > 1` → `unsupported_version`、`Parameters`が無い／JSON不正／`schema`違い → `partial`（警告を`warnings`へ）、`ycomfy:*`も`CreatorTool`の`YoshiakiSaveImageJXL`も無い → `none`
+  - `Parameters`の値を優先し、欠けている項目だけ重複プロパティ（`ycomfy:Seed`等、`dc:description`、`xmp:CreateDate`、`xmp:CreatorTool`）で補う。型が想定と違う値は捨てる（v2で型が変わっても落ちない）
+  - `seed`はJS・`info`ルートには文字列のまま渡し、INT出力時だけ`int()`
+  - 概要欄の文字列はJS側で`info`から組み立てる（実行前の`/info`と実行後の`ui.jxl_info`が同じ形なので同じ関数で表示）
+  - プレビューはノードと同じ変換（`frame_to_arrays`）で8bit化してからWebP（品質85、長辺512px、アルファ保持）
+  - フロントエンド1.57.6のソースで、`widget.serialize === false`のウィジェットが`widgets_values`の保存・復元の両方から除外されることを確認。APIのpromptからの除外は`options.serialize === false`で判定されるため両方設定した
+- **テスト結果（コンテナ内、ComfyUI外の単体テスト155項目）**:
+  - outputフォルダの実ファイル101枚すべてで、ボックス走査の結果が`pillow_jxl.Decoder()`の5番目の戻り値の`xml `ボックスとバイト単位で一致
+  - コンテナなしの素のコードストリーム（`FF 0A`）、`write_xmp`なし、壊れたXML、他ツールのXMPのみ → `none`。切り詰めたファイル・サイズ欄が不正なファイルでも例外なし
+  - 64bitサイズ（size=1）・size=0・`brob`の各ボックス形式（`brob`はzlibで代用したスタブで確認。コンテナには`brotli`が無く、その場合は警告してスキップすることも確認）
+  - `Parameters`削除 → `partial`でプロンプト・seed・note・generatorを代替要素から取得、`version: 2` → `unsupported_version`で読める範囲を表示、`schema`違い → `partial`
+  - ロスレスRGBが保存前の8bit値と完全一致、RGBAのMASKが`1 - alpha`、`I;16`が65535で割った値、アルファなしMASKが64×64の全0
+  - `../x.jxl`・`/etc/x.jxl`・`C:\x.jxl`・`C:/x.jxl`・`sub/../../x.jxl`・UNCパス・input外を指すシンボリックリンク・`.png`・存在しないファイルを拒否
+  - 一覧にサブフォルダの`.JXL`（大文字）が入り、`.png`は入らない
+- **実機確認（`comfyui-igpu`を再起動して確認）**:
+  - `/object_info`に9出力で登録、`/list`・`/info`・`/preview`（512×398のWebP）が動作。`../../etc/passwd`・`/etc/passwd`・`_jxltest/../../x.jxl`・`C:/x.jxl`はinfo/previewとも400、存在しないファイルは404
+  - 実ファイル（`Anima-0001.jxl`）を`PreviewImage`／`PreviewAny`に繋いで実行し、`seed`/`negative_text`/`cfg`の出力が`/info`の値と一致。`ui.jxl_info`も返る
+  - seed `18446744073709551615`（2^64-1）のファイルで`seed`出力が完全一致
+  - `image: "../x.jxl"`のpromptは`VALIDATE_INPUTS`のエラーで弾かれる
+  - `/upload/image`への`.jxl`アップロードがinputフォルダに保存される（アップロードボタン自体はブラウザ未確認）
+- **備考**:
+  - ブラウザでの確認項目（未実施）: 実行前のプレビュー・表示、Chrome/Edgeでのプレビュー、アップロード後の選択状態、ワークフロー保存→再読み込みで`image`がずれないこと、`positive_text`を`CLIPTextEncode`へ繋いでの再生成
+  - `comfyui-egpu9070`／`comfyui-egpu9700`は再起動していないため、次回起動時から本ノードが出る
+  - XMLの解析は`xml.etree.ElementTree`（外部実体は展開されない。Python 3.12＋expat 2.6以降は実体の爆発的展開にも上限がある）
+
+---
+
 ## タスク: YoshiakiSaveImageJXL（JPEG XL保存＋XMPパラメータ埋め込み）ノードの新規作成
 
 - **完了日**: 2026-11-03
