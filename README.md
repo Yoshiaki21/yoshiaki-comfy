@@ -375,6 +375,67 @@ LoRA学習用データセットの準備（画像 + キャプションのペア�
 - `/` を含めるとサブフォルダになる（例: `ckpt_name, /, cfg` → `v1-5-pruned/8.0`）。`.custom_string` は区切り文字の代わりに`.`でつながる
 - `../` も使えるが、**最終的な保存先がComfyUIのoutputフォルダの外になる場合はエラーで止まる**（本家にはないガード）
 
+### つなぎ方
+
+| 入力 | つなぐノード（出力） | 必須 |
+|---|---|---|
+| `images` | `VAE Decode` の `IMAGE`（アップスケール等をしている場合は最後の画像出力） | ○ |
+| `positive_text` | 実際に使ったポジティブプロンプトを出す STRING 出力。下表参照 | 任意 |
+| `negative_text` | 実際に使ったネガティブプロンプトを出す STRING 出力 | 任意 |
+
+`positive_text` / `negative_text` につなげる主なノード:
+
+| ノード | 出力 | つなぐ意味 |
+|---|---|---|
+| `Yoshiaki Wildcard Encode` | `populated_text`（4番目の出力） | ワイルドカード解決後の文。**未接続でも自動取得で同じ値が取れる**ので、つなぐのは確実に記録したいときだけでよい |
+| `Yoshiaki Wildcard Processor` | `processed text` | 解決後の文。これを CLIPTextEncode の `text` につないでいる構成では自動取得が `unresolved`（空）になるので、**つないだ方がよい** |
+| `Yoshiaki-PromptTranslator` | `combined_prompt` | 翻訳後の英語プロンプト。自動取得では取れない（`unresolved`）ので、**記録したいなら必ずつなぐ** |
+| その他の STRING を出すノード（テキスト結合ノード等） | その STRING 出力 | 同上。CLIPTextEncode の `text` 欄がリンクになっている構成ではつなぐ |
+
+```
+[Checkpoint Loader] → [Yoshiaki Wildcard Encode] ─(conditioning)→ [KSampler] → [VAE Decode] ─(IMAGE)→ [Yoshiaki Save Image JXL]
+                              └─(populated_text)────────────────────────────────────────────────→ positive_text（任意）
+[CLIPTextEncode（ネガティブ）] ─(conditioning)→ [KSampler]                                          negative_text は未接続でも自動取得
+```
+
+**未接続のときの自動取得**: 保存ノードの `images` から上流へたどって主サンプラーを見つけ、その `positive` / `negative` 入力（サンプラー自身に無い SamplerCustomAdvanced 構成では、上流の CFGGuider 等の入力）から、さらに上流で最初に見つかったテキスト欄を使う。探す順は `populated_text` → `text` → `prompt`（YoshiakiWildcardEncode は `populated_text`、CLIPTextEncode は `text`）。
+
+| 状況 | 記録される値 | `positive_source` / `negative_source` |
+|---|---|---|
+| 入力がつながっている | 入力の値（バッチ・リストなら画像と同じ番号の要素。足りなければ最後の要素） | `input` |
+| 未接続で、テキスト欄に値が書かれている（CLIPTextEncode・YoshiakiWildcardEncode） | 自動取得した値 | `auto` |
+| 未接続で、テキスト欄が別ノードの出力につながっている（PromptTranslator → CLIPTextEncode など） | 空文字 | `unresolved` |
+| サンプラーが見つからない／テキスト欄が無い（Flux の BasicGuider など） | 空文字 | `none` |
+
+どちらで取得したかは `exiftool -XMP-ycomfy:Parameters xxx.jxl` の `positive_source` / `negative_source` で確認できる。**つないだつもりでも `auto` になっている場合は、キューに入れた時点で接続されていない**（ComfyUIの `/history` で実行時のリンクを確認できる）。
+
+### `named_keys`
+
+`filename_keys` / `foldername_keys` で取り出した値の前にキー名を付ける（本家の機能）。ファイル名だけで値の意味が分かるようにするためのもので、XMPの内容には影響しない。
+
+| `filename_keys` = `seed, cfg, steps` | ファイル名 |
+|---|---|
+| `named_keys = False`（既定） | `test-705907670157153-5.0-30-0001.jxl` |
+| `named_keys = True` | `test-seed=705907670157153-cfg=5.0-steps=30-0001.jxl` |
+
+キー名が付くのは、ワークフロー内から値が見つかったキーだけ。固定文字列（`'abc'`）、日時書式（`%F`）、`resolution` には付かない。
+
+### `primary_node`
+
+XMPに記録する「主seed」「主サンプラー」をノードIDで指定する（本ノードで追加した機能）。空欄なら自動判定。ここで決まるのは次の3つ。
+
+- `ycomfy:Seed` / `seed.value`
+- `sampler` 欄（`steps` / `cfg` / `sampler_name` / `scheduler` / `denoise`）
+- プロンプトの自動取得元（上記）
+
+**自動判定**: `images` から上流をたどって `seed` / `noise_seed` を持つノードを集め、class_type に Sampler / Noise を含むもののうち保存ノードに最も近いものを主seedにする（同じ距離ならノードIDの小さい方）。主サンプラーは、上流で最初に見つかる class_type に Sampler を含むノード。SamplerCustomAdvanced ＋ RandomNoise の構成でも、seed は RandomNoise、サンプラーは SamplerCustomAdvanced と正しく分かれる。
+
+**指定が必要な例**:
+- 2段階生成（Hires fix・アップスケール後の KSampler）: 保存ノードに近い2段目が選ばれる。1段目の seed とプロンプトを記録したいなら1段目のIDを指定する
+- 並列のサンプラーが保存ノードから同じ距離にある: IDの小さい方が選ばれるので、意図した方を指定する
+
+ノードIDはノード右上のバッジ（`#5` など）で確認する。バッジが出ていなければ、ComfyUIの設定でノードIDバッジの表示を有効にする。指定したノード自身が seed を持たない場合は、その上流（RandomNoise 等）から探す。存在しないIDを書いた場合はログに出して自動判定に戻る。KSampler が1つだけの普通の構成なら空欄のままでよい。
+
 **XMPに書き込む内容**: `dc:description`（ポジティブプロンプト）、`xmp:CreatorTool`、`xmp:CreateDate`、`ycomfy:SchemaVersion` / `Seed` / `PositivePrompt` / `NegativePrompt` / `Note`、そして正となるデータの `ycomfy:Parameters`（JSON。seedとその候補、サンプラー設定、モデル一覧、全ノードのウィジェット値、バッチ内の位置など）。seedは2^53を超えても精度が落ちないよう10進数の文字列で入れています。XMPは非圧縮の `xml ` ボックスに入るので、exiftool等でそのまま読めます（`exiftool -XMP:all -G1 xxx.jxl`）。
 
 **注意点**:
