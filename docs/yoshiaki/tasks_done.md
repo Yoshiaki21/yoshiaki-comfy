@@ -27,7 +27,7 @@
 ## タスク: YoshiakiSaveImageJXL（JPEG XL保存＋XMPパラメータ埋め込み）ノードの新規作成
 
 - **完了日**: 2026-11-03
-- **動作確認**: ✅一部済み（ComfyUI外の単体テスト39項目合格。実機ComfyUIでの保存とexiftoolでの読み取りを2026-11-03に確認。Windows版・PromptTranslator接続・バッチ4・ロスレスの実機確認は未実施）
+- **動作確認**: ✅一部済み（ComfyUI外の単体テスト39項目合格。実機ComfyUIでの保存・exiftoolでの読み取り・`positive_text`入力の反映を2026-11-03に確認。Windows版・PromptTranslator接続・バッチ4・ロスレスの実機確認は未実施）
 - **新規ファイル**:
   - `modules/yoshiaki_save_jxl/__init__.py` : パッケージ
   - `modules/yoshiaki_save_jxl/naming.py` : save-image-extended 2.88 から移植したファイル名・フォルダ・連番ロジック＋outputフォルダ外への書き込みガード
@@ -57,6 +57,10 @@
 - **備考**:
   - **exiftoolでの読み取り（指示書タスク0の残り）: ✅確認済み（2026-11-03）**。ユーザーが実機ComfyUIで保存した`sample_jxl/test-0001.jxl` / `test-0002.jxl`に対する`exiftool -XMP:all -G1`の出力で、`[XMP-dc] Description`・`[XMP-xmp] CreatorTool` / `CreateDate`・`[XMP-ycomfy] SchemaVersion` / `Seed` / `PositivePrompt` / `NegativePrompt` / `Parameters`がすべて読めた。exiftoolが出力した`Parameters`のJSONは、ファイルから直接取り出したXMPのJSONと完全に一致。exiftoolの表示では改行が`.`、`CreateDate`が`2026:11:03 17:37:02+09:00`形式になるが、これはexiftoolの表示上の変換で、格納値は変わっていない
   - 同じ実機サンプルで確認できたこと: ボックス並び`JXL `→`ftyp`→`jxlp`→`xml `→`jxlp`、2枚でseedが異なる（`randomize`の実際の値が記録される）、主seedはKSampler（distance 2）でYoshiakiWildcardEncodeのseedは候補止まり、ポジティブはYoshiakiWildcardEncodeの`populated_text`（ワイルドカード解決後）、ネガティブはCLIPTextEncodeから自動取得、`comfyui_version`は`0.43.0`
+  - **`positive_text`入力の実機確認（2026-11-03）: ✅確認済み**。最初に「接続して保存した」とされたtest-0001.jxlは`positive_source: "auto"`だった。ComfyUIの`/history`（送信されたpromptと実行時のワークフローがリンク込みで残る）を調べると、test-0001を含むそれまでの4回の実行はすべて`positive_text`未接続でキューに入っていた（ノード側の不具合ではなく、キュー投入時点で接続が無かった）
+    - 接続し直したtest-0003.jxlでは、`/history`上で`positive_text` → #32 YoshiakiWildcardEncodeの出力3（`populated_text`）のリンクが送られ、XMPは`positive_source: "input"`（`negative_source`は未接続のため`"auto"`）。入力の値は同じ実行の#32の`populated_text`と完全一致し、`ycomfy:PositivePrompt`・`dc:description`・`Parameters`の3か所が同じ文字列。`positive_text`のリンク自体は`nodes["34"].inputs`に含まれない（6.1節のリンク除外どおり）
+    - 今回は接続元が自動取得の探索先と同じノードだったため、値は`auto`のときと同じで`source`だけが変わった。PromptTranslatorの`combined_prompt`のように自動取得では`unresolved`になる経路の実機確認は未実施
+    - 調べ方: `curl http://127.0.0.1:8188/history`の各エントリの`prompt[2]`（API形式のprompt）でSaveノードの`inputs`にリンクがあるか、`prompt[3].extra_pnginfo.workflow`で実行時の接続を確認できる
   - podmanコンテナ（`comfyui-igpu` / `comfyui-egpu9070`、Python 3.12.3 / Pillow 12.3.0）にはまだ`pillow-jxl-plugin`が入っていない。入れるまではノードが表示されない（他ノードは影響なし）
   - JPEG XL非対応ブラウザではノード上のプレビューが表示されない（本家と同じ挙動）
 
