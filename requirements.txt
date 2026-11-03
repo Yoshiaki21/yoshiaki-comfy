@@ -3,3 +3,4 @@ numpy
 Pillow
 onnxruntime
 tqdm
+pillow-jxl-plugin>=1.3.8

@@ -24,6 +24,44 @@
 
 ---
 
+## タスク: YoshiakiSaveImageJXL（JPEG XL保存＋XMPパラメータ埋め込み）ノードの新規作成
+
+- **完了日**: 2026-11-03
+- **動作確認**: ✅一部済み（ComfyUI外の単体テスト39項目合格。実機ComfyUIでの保存とexiftoolでの読み取りを2026-11-03に確認。Windows版・PromptTranslator接続・バッチ4・ロスレスの実機確認は未実施）
+- **新規ファイル**:
+  - `modules/yoshiaki_save_jxl/__init__.py` : パッケージ
+  - `modules/yoshiaki_save_jxl/naming.py` : save-image-extended 2.88 から移植したファイル名・フォルダ・連番ロジック＋outputフォルダ外への書き込みガード
+  - `modules/yoshiaki_save_jxl/metadata.py` : 値の収集（指示書第6章）とXMPパケット生成（第5章）。ComfyUI非依存
+  - `modules/yoshiaki_save_jxl/save_jxl.py` : `YoshiakiSaveImageJXL`ノード本体（`NODE_VERSION = "1.0.0"`）
+  - `docs/yoshiaki/JXL_Save_Node_指示書.md` : 仕様書（リポジトリ直下から指示書記載の配置先へ移動）
+- **修正ファイル**:
+  - `__init__.py` : ノード登録。`pillow-jxl-plugin`が無い場合はこのノードだけ無効化してエラーログ
+  - `requirements.txt` : `pillow-jxl-plugin>=1.3.8`を追加
+  - `README.md` : ノード一覧・説明セクション・依存パッケージ・ライセンス欄（save-image-extended、GPL-3.0）を追記
+  - `CLAUDE.md` : 本ノードの説明を追記
+- **変更内容**:
+  - 本家`save_image_extended.py`（2.88）を取得して移植。拡張子分岐・jobs.json・EXIFへのprompt/workflow埋め込み・`one_counter_per_folder`等は削除
+  - JXL保存は`img.save(path, format="JXL", lossless=, quality=, effort=, xmp=, compress_metadata=False)`。`write_xmp=False`のときは`xmp`を渡さない
+  - XMPは`xml.etree.ElementTree`で組み立て（手作業の文字列連結なし）。XML 1.0で使えない制御文字はXMPのテキスト値から除去（`ycomfy:Parameters`は`json.dumps`が制御文字をエスケープするので影響なし）。NaN/Infinityは文字列化して不正JSONを防ぐ
+  - seed探索: `images`入力から幅優先で`seed`/`noise_seed`を集め、`Sampler`/`Noise`を含むclass_type優先→距離最小→ノードID数値順。seedウィジェットがリンク（Primitive等）の場合はリンク先の`seed`/`noise_seed`/`value`/`int`/`number`をたどる（指示書に明記はないが互換な追加）
+  - 主seedの`seed`オブジェクトに`distance`も入れた（指示書5.4の表にある項目。例のJSONには無いがキー追加なので`version: 1`のまま）
+  - プロンプト自動取得は、主サンプラー自身に`positive`/`negative`が無い場合（SamplerCustomAdvanced）に上流のCFGGuider等の入力を使う
+- **テスト結果（ComfyUI外、pillow-jxl-plugin 1.3.8 / Pillow 13.0.0 / Python 3.14、Linux）**:
+  - 本家README例3つのフォルダ・ファイル名を再現（例2はREADME記載の`PREFIX-cfg-8.0-euler-…`ではなく`PREFIX-8.0-euler-…`になる。本家コードのロジックでもこちらになるため、README側の記載ミスと判断）
+  - 連番の継続・`.jxl`以外の無視・`counter_digits=0`・`counter_position=first`、`../../x`の拒否
+  - ロスレス保存（RGB / RGBA）が8bit変換後のテンソルと完全一致
+  - ボックス並び`JXL ` → `ftyp` → `jxlp` → `xml ` → `jxlp`、`brob`なし
+  - `ycomfy:Parameters`のJSONパース、`schema`/`version`、2^64-1のseed文字列、日本語・`<&>"`・改行の往復、16,384文字超の切り詰め、バッチ4の`batch_index` 0〜3、リスト入力の`positive_text`の添字対応（不足分は最後の要素）
+  - KSampler構成とSamplerCustomAdvanced＋RandomNoise＋YoshiakiWildcardEncode構成で主seed・サンプラー・プロンプト（`populated_text`）を正しく選択、`primary_node`による上書き、`source: "unresolved"`
+  - `write_xmp=False`でXMPボックスなし
+- **備考**:
+  - **exiftoolでの読み取り（指示書タスク0の残り）: ✅確認済み（2026-11-03）**。ユーザーが実機ComfyUIで保存した`sample_jxl/test-0001.jxl` / `test-0002.jxl`に対する`exiftool -XMP:all -G1`の出力で、`[XMP-dc] Description`・`[XMP-xmp] CreatorTool` / `CreateDate`・`[XMP-ycomfy] SchemaVersion` / `Seed` / `PositivePrompt` / `NegativePrompt` / `Parameters`がすべて読めた。exiftoolが出力した`Parameters`のJSONは、ファイルから直接取り出したXMPのJSONと完全に一致。exiftoolの表示では改行が`.`、`CreateDate`が`2026:11:03 17:37:02+09:00`形式になるが、これはexiftoolの表示上の変換で、格納値は変わっていない
+  - 同じ実機サンプルで確認できたこと: ボックス並び`JXL `→`ftyp`→`jxlp`→`xml `→`jxlp`、2枚でseedが異なる（`randomize`の実際の値が記録される）、主seedはKSampler（distance 2）でYoshiakiWildcardEncodeのseedは候補止まり、ポジティブはYoshiakiWildcardEncodeの`populated_text`（ワイルドカード解決後）、ネガティブはCLIPTextEncodeから自動取得、`comfyui_version`は`0.43.0`
+  - podmanコンテナ（`comfyui-igpu` / `comfyui-egpu9070`、Python 3.12.3 / Pillow 12.3.0）にはまだ`pillow-jxl-plugin`が入っていない。入れるまではノードが表示されない（他ノードは影響なし）
+  - JPEG XL非対応ブラウザではノード上のプレビューが表示されない（本家と同じ挙動）
+
+---
+
 ## タスク: 起動時・F5時・キュー投入時の接続先をノードの設定に追従させる（yoshiaki-llm.ini ＋ VALIDATE_INPUTS）
 
 - **完了日**: 2026-09-19

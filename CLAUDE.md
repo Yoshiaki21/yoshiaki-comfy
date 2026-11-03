@@ -147,3 +147,25 @@
 
 ---
 
+
+### YoshiakiSaveImageJXL
+
+- **実装日**: 2026-11-03
+- **カスタムノードの機能の概要**:
+  - 画像をJPEG XL（`.jxl`）だけで保存する。ファイル名・フォルダの決め方は[save-image-extended-comfyui](https://github.com/audioscavenger/save-image-extended-comfyui)（2.88、GPL-3.0）の`generate_custom_name`／`get_latest_counter`等を移植（`modules/yoshiaki_save_jxl/naming.py`）。`id.widget`、widget名、未知キー＝固定文字列、`/`・`../`でサブフォルダ、`.custom_string`、`ckpt_path`/`lora_path`/`control_net_path`、日時書式、`named_keys`、`resolution`に対応
+  - 連番は`.jxl`ファイルだけを数える。`counter_digits=0`で連番なし
+  - エンコードは`pillow-jxl-plugin`（`quality`/`lossless`/`effort`）。RGBAはアルファを保持
+  - `write_xmp=True`で、再生成に必要な情報をXMP（非圧縮の`xml `ボックス）に書き込む。**ワークフロー本体は書き込まない**。XMP仕様v1（名前空間`ycomfy`、正となるデータは`ycomfy:Parameters`のJSON）は指示書第5章の**確定仕様**
+  - seed／主サンプラーは`images`入力から上流への幅優先探索で自動判定（`primary_node`で上書き可）。プロンプトは`positive_text`/`negative_text`入力が優先、未接続なら主サンプラー（またはその上流のCFGGuider等）の`positive`/`negative`から`populated_text`→`text`→`prompt`の順で自動取得
+  - 詳細仕様は[docs/yoshiaki/JXL_Save_Node_指示書.md](docs/yoshiaki/JXL_Save_Node_指示書.md)
+- **備考**:
+  - `class_type`は`YoshiakiSaveImageJXL`、表示名は`Yoshiaki Save Image JXL`、`CATEGORY`は`yoshiaki-comfy/image`、`NODE_VERSION = "1.0.0"`（`save_jxl.py`。XMPに書き込まれる）
+  - **XMPの構造・`ycomfy:Parameters`のJSONスキーマを変えるときは指示書5.5節に従う**（キー追加は`version: 1`のまま、削除・型や意味の変更は`version: 2`）。後で作る画像ロードノードがこの仕様に依存する
+  - `INPUT_IS_LIST = True`（リスト出力の`positive_text`を画像と添字で対応付けるため）。ウィジェット値・hidden入力もリストで届くので`_first()`で取り出す。画像は全バッチを平坦化して`batch_index`を振る
+  - `pillow-jxl-plugin`が無い環境では、ルートの`__init__.py`がこのノードだけを登録せずにエラーログを出す（パック全体は止めない）
+  - 本家との違い: 保存先がoutputフォルダ外になる`../`はエラーにする。本家がimport時に行う`locale.setlocale(LC_TIME, '')`はプロセス全体に影響するため移植していない（`%a`/`%b`/`%c`/`%p`などロケール依存の日時書式だけ結果が変わり得る）
+  - XMPの名前空間宣言は`ElementTree`の仕様で`x:xmpmeta`にまとめて出力される（指示書5.6の例では`rdf:Description`上だが、XMLとして等価）
+  - `pillow-jxl-plugin`の`Image.open()`はXMPを`im.info`に入れない。読み取りは`pillow_jxl.Decoder()(bytes)`の5番目の戻り値（ボックス一覧）から`box_type == b"xml "`を探す
+  - 配布予定なし、個人利用限定
+
+---

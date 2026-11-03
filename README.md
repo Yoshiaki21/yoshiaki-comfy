@@ -13,6 +13,7 @@
 | **Yoshiaki LoRA Caption Load** (`YoshiakiLoRACaptionLoad`) | 指定フォルダ内のPNG画像とファイル名一覧を読み込む（LoRA学習用データセット準備の入力側） |
 | **Yoshiaki LoRA Caption Save** (`YoshiakiLoRACaptionSave`) | 画像ファイル名に対応するキャプション(`.txt`)を、共通プレフィックス付きで保存する |
 | **Yoshiaki WD14 Tagger** (`YoshiakiWD14Tagger`) | 画像をWD14系ONNXモデルでタグ付けする（booruタグ形式）。タグの優先順位並べ替え・ワイルドカード対応の除外タグをサポート |
+| **Yoshiaki Save Image JXL** (`YoshiakiSaveImageJXL`) | save-image-extended と同じ方式でファイル名・フォルダを決めて JPEG XL（.jxl）で保存し、再生成に必要なパラメータ（seed・プロンプト・サンプラー・モデル・全ノードの値）をXMPに書き込む |
 
 `YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack) の `ImpactWildcardProcessor` / `ImpactWildcardEncode` を、この2ノードだけ使う用途に切り出して単独パック化したものです。`YoshiakiLLMCaptionGenerator` はもともと別リポジトリ [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) として作っていたノードをこちらに統合したものです（当時の開発履歴は [docs/yoshiaki/tasks_done.LLM.md](docs/yoshiaki/tasks_done.LLM.md)、詳細仕様は [docs/yoshiaki/LLM_Caption_Node_指示書.md](docs/yoshiaki/LLM_Caption_Node_指示書.md) 参照）。`YoshiakiLoRACaptionLoad` / `YoshiakiLoRACaptionSave` は自分のフォーク [Image-Captioning-in-ComfyUI](https://github.com/Yoshiaki21/Image-Captioning-in-ComfyUI)（本家: [LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI)）から統合したものです。いずれもノード名・Pythonパッケージ名を独自のものに変更しているため、元のリポジトリと同一環境に共存インストールしても衝突しません。
 
@@ -337,6 +338,53 @@ LoRA学習用データセットの準備（画像 + キャプションのペア�
 
 ---
 
+## Yoshiaki Save Image JXL
+
+画像を JPEG XL（`.jxl`）で保存します。ファイル名・フォルダの決め方は [save-image-extended-comfyui](https://github.com/audioscavenger/save-image-extended-comfyui)（2.88）のロジックを移植したもので、同じキー指定なら同じフォルダ構成・ファイル名になります。画像を再生成するための情報をXMPに書き込みますが、**ワークフロー本体は埋め込みません**。仕様の詳細は [docs/yoshiaki/JXL_Save_Node_指示書.md](docs/yoshiaki/JXL_Save_Node_指示書.md) 参照。
+
+**入力**
+
+| 名前 | 型 | 既定値 | 説明 |
+|---|---|---|---|
+| `images` | IMAGE | — | 保存する画像（バッチ・リスト対応） |
+| `filename_prefix` | STRING | `ComfyUI` | ファイル名の先頭に付く固定文字列（`%`を含めば日時書式として展開） |
+| `filename_keys` | STRING | `sampler_name, cfg, steps, %F %H-%M-%S` | ファイル名に追加するキー（カンマ区切り、書いた順） |
+| `foldername_prefix` | STRING | 空 | サブフォルダの先頭に付く固定文字列 |
+| `foldername_keys` | STRING | `ckpt_name` | サブフォルダ名に使うキー（`filename_keys`と同じ規則） |
+| `delimiter` | STRING | `-` | 区切り文字（先頭の1文字だけ使う） |
+| `counter_digits` | INT 0〜8 | 4 | 連番の桁数。0で連番なし。既存の`.jxl`の最大番号の次から続く |
+| `counter_position` | last / first | last | `name-0001.jxl` か `0001-name.jxl` か |
+| `named_keys` | BOOLEAN | False | 値の前にキー名を付ける（`seed=123-cfg=5.0`） |
+| `image_preview` | BOOLEAN | True | 保存した画像をノード上に表示する |
+| `quality` | INT 1〜100 | 90 | JXLの品質（`lossless`時は無視） |
+| `lossless` | BOOLEAN | False | ロスレス保存 |
+| `effort` | INT 1〜9 | 7 | エンコードの労力（大きいほど小さく・遅い） |
+| `write_xmp` | BOOLEAN | True | XMPを書き込むか |
+| `primary_node` | STRING | 空 | 主サンプラーのノードID（例: `3`）。空欄なら自動判定 |
+| `positive_text` / `negative_text` | STRING（接続専用・任意） | — | 実際に使われたプロンプト。未接続なら主サンプラーの`positive`/`negative`から自動取得 |
+| `xmp_note` | STRING（任意） | 空 | XMPに書き込む自由記述メモ |
+
+出力はありません（保存ノード）。
+
+**キーの書き方**（本家と同じ）
+
+- ウィジェット名（`sampler_name`）、またはノードID付き（`3.seed`）。ノードIDを付けない場合、同名ウィジェットが複数あると最後に見つかった値になる
+- `resolution`（`1024x1536`）、日時書式（`%F` / `%Y` / `%H-%M-%S` など）
+- `'固定'` / `"固定"` は引用符ごと固定文字列。見つからないキー名もそのまま固定文字列になる
+- `ckpt_name` / `lora_name` / `control_net_name` はファイル名だけ、`ckpt_path` / `lora_path` / `control_net_path` はモデルのサブフォルダを返す
+- `/` を含めるとサブフォルダになる（例: `ckpt_name, /, cfg` → `v1-5-pruned/8.0`）。`.custom_string` は区切り文字の代わりに`.`でつながる
+- `../` も使えるが、**最終的な保存先がComfyUIのoutputフォルダの外になる場合はエラーで止まる**（本家にはないガード）
+
+**XMPに書き込む内容**: `dc:description`（ポジティブプロンプト）、`xmp:CreatorTool`、`xmp:CreateDate`、`ycomfy:SchemaVersion` / `Seed` / `PositivePrompt` / `NegativePrompt` / `Note`、そして正となるデータの `ycomfy:Parameters`（JSON。seedとその候補、サンプラー設定、モデル一覧、全ノードのウィジェット値、バッチ内の位置など）。seedは2^53を超えても精度が落ちないよう10進数の文字列で入れています。XMPは非圧縮の `xml ` ボックスに入るので、exiftool等でそのまま読めます（`exiftool -XMP:all -G1 xxx.jxl`）。
+
+**注意点**:
+- `pillow-jxl-plugin` が必要（`requirements.txt`に記載）。未インストールの場合はこのノードだけが無効になり、ログにエラーが出る（他のノードは動く）
+- プレビューは `.jxl` をそのままブラウザに表示させるため、JPEG XLに対応していないブラウザ（Chrome / Firefoxの既定設定など）では表示されない
+- 本家にあった `output_ext`・`save_metadata`（EXIFへのprompt/workflow埋め込み）・`save_job_data`（jobs.json）などは削除している
+- ワークフローを埋め込まないため、`.jxl` をComfyUIへドラッグ＆ドロップしてもワークフローは復元されない
+
+---
+
 ## インストール
 
 このリポジトリをComfyUIの `custom_nodes` フォルダ内にクローン（またはシンボリックリンク）し、以下を実行してください。
@@ -345,10 +393,10 @@ LoRA学習用データセットの準備（画像 + キャプションのペア�
 pip install -r requirements.txt
 ```
 
-依存パッケージは `pyyaml`, `numpy`, `Pillow`, `onnxruntime`, `tqdm` です。`pyyaml`/`numpy`/`Pillow`はComfyUI本体が通常インストール済みですが、`onnxruntime`（`Yoshiaki WD14 Tagger`が使用）と`tqdm`（モデルダウンロードの進捗表示用）は追加インストールが必要な場合があります。`YoshiakiLLMCaptionGenerator` はLLMサーバー（Lemonade Server / llama-server）との通信に標準ライブラリの`urllib`/`http.client`のみを使っており、追加のSDK等は不要です。
+依存パッケージは `pyyaml`, `numpy`, `Pillow`, `onnxruntime`, `tqdm`, `pillow-jxl-plugin` です。`pillow-jxl-plugin`（`Yoshiaki Save Image JXL`が使用）はComfyUI本体には含まれないため、通常は追加インストールが必要です（Windows / Linux ともにビルド済みwheelあり）。`pyyaml`/`numpy`/`Pillow`はComfyUI本体が通常インストール済みですが、`onnxruntime`（`Yoshiaki WD14 Tagger`が使用）と`tqdm`（モデルダウンロードの進捗表示用）は追加インストールが必要な場合があります。`YoshiakiLLMCaptionGenerator` はLLMサーバー（Lemonade Server / llama-server）との通信に標準ライブラリの`urllib`/`http.client`のみを使っており、追加のSDK等は不要です。
 
 ---
 
 ## ライセンス
 
-`YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack)（GPLv3）からのコードを含みます。`YoshiakiLLMCaptionGenerator` は自作の [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) からの移植です。`YoshiakiLoRACaptionLoad` / `YoshiakiLoRACaptionSave` は [LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI) を自分がフォークしたものからの移植です（本家・フォークともにOSSライセンスの明記なし）。`YoshiakiWD14Tagger` は [pythongosssss/ComfyUI-WD14-Tagger](https://github.com/pythongosssss/ComfyUI-WD14-Tagger)（MITライセンス）を自分がフォークしたものからの移植です。個人利用のみで配布予定はありません。
+`YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack)（GPLv3）からのコードを含みます。`YoshiakiLLMCaptionGenerator` は自作の [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) からの移植です。`YoshiakiLoRACaptionLoad` / `YoshiakiLoRACaptionSave` は [LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI) を自分がフォークしたものからの移植です（本家・フォークともにOSSライセンスの明記なし）。`YoshiakiWD14Tagger` は [pythongosssss/ComfyUI-WD14-Tagger](https://github.com/pythongosssss/ComfyUI-WD14-Tagger)（MITライセンス）を自分がフォークしたものからの移植です。`YoshiakiSaveImageJXL` のファイル名・フォルダ処理は [audioscavenger/save-image-extended-comfyui](https://github.com/audioscavenger/save-image-extended-comfyui)（GPL-3.0）からの移植です。個人利用のみで配布予定はありません。

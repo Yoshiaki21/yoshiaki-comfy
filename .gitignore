@@ -236,3 +236,6 @@ modules/yoshiaki_wd14tagger/config.user.json
 
 # yoshiaki-comfy: LoRA info cache (hashed safetensors metadata + Civitai lookups)
 modules/yoshiaki_lora_info/cache/
+
+# yoshiaki-comfy: YoshiakiSaveImageJXL sample outputs / exiftool dumps (local test data)
+/sample_jxl/

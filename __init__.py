@@ -50,12 +50,24 @@ from yoshiaki_wd14tagger.wd14tagger import (  # noqa: E402
 )
 import yoshiaki_lora_info.lora_info  # noqa: F401, E402  (registers the LoRA info server routes; not a node)
 
+# YoshiakiSaveImageJXL needs pillow-jxl-plugin. If it is missing, only this node is
+# skipped so the rest of the pack keeps working.
+try:
+    from yoshiaki_save_jxl.save_jxl import (  # noqa: E402
+        NODE_CLASS_MAPPINGS as _SAVE_JXL_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as _SAVE_JXL_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+except ImportError as e:
+    logging.error(f"[yoshiaki-comfy] YoshiakiSaveImageJXL disabled: {e} (pip install pillow-jxl-plugin)")
+    _SAVE_JXL_NODE_CLASS_MAPPINGS, _SAVE_JXL_NODE_DISPLAY_NAME_MAPPINGS = {}, {}
+
 NODE_CLASS_MAPPINGS = {
     **_WILDCARD_NODE_CLASS_MAPPINGS,
     **_LLM_NODE_CLASS_MAPPINGS,
     **_LLM_TRANSLATOR_NODE_CLASS_MAPPINGS,
     **_LORACAPTION_NODE_CLASS_MAPPINGS,
     **_WD14TAGGER_NODE_CLASS_MAPPINGS,
+    **_SAVE_JXL_NODE_CLASS_MAPPINGS,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     **_WILDCARD_NODE_DISPLAY_NAME_MAPPINGS,
@@ -63,6 +75,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_LLM_TRANSLATOR_NODE_DISPLAY_NAME_MAPPINGS,
     **_LORACAPTION_NODE_DISPLAY_NAME_MAPPINGS,
     **_WD14TAGGER_NODE_DISPLAY_NAME_MAPPINGS,
+    **_SAVE_JXL_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 nodes.EXTENSION_WEB_DIRS["yoshiaki-comfy"] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'js')
