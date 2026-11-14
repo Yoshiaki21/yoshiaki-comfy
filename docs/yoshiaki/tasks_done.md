@@ -24,6 +24,23 @@
 
 ---
 
+## タスク: Yoshiaki-PromptTranslator の翻訳プロンプトを作風別（アニメ／実写）に分ける
+
+- **完了日**: 2026-11-14
+- **動作確認**: ✅済み（2026-11-14、実機で「下からのアングル、雨上がりの夜の街、ネオンが水たまりに反射」を両方で翻訳し、どちらも英語の1段落になり、実写版に入力に無いレンズ名・作風の言葉が足されないことをユーザーが確認。撮影用語を含む入力での実写版の挙動は未確認）
+- **新規ファイル**:
+  - `modules/yoshiaki_llm/system_prompts_translate/translate_photo.txt` : 実写向けの翻訳プロンプト
+- **修正ファイル**:
+  - `modules/yoshiaki_llm/system_prompts_translate/translate_anima.txt` → `translate_anime.txt` : 改名し、1行目の役割の説明を「アニメ調の画像生成モデル向け（例: Anima）」に変更
+  - `CLAUDE.md` : Yoshiaki-PromptTranslatorの説明を作風別の方針に更新、改名の注意を追記
+- **変更内容**:
+  - `translate_anima.txt`にはAnima専用のルールが無く、中身は画像生成プロンプト全般向けだったため、モデル別ではなく作風別に分ける方針にした（ユーザーと相談のうえ。モデル固有の調整は問題が出たら行う）
+  - アニメ版は役割の説明以外を変えていない（実機確認済みの動作を保つため）
+  - 実写版はアニメ版と同じ骨組みで、撮影用語を使ってよいこと、レンズ・カメラ・フィルム名や`photorealistic`等の作風の言葉は入力に無ければ足さないことを加えた
+- **備考**: 旧名`translate_anima.txt`を選んで保存したワークフローは選び直しが必要
+
+---
+
 ## タスク: Yoshiaki-PromptTranslator の combined_prompt を空行区切りに変更
 
 - **完了日**: 2026-11-14
