@@ -273,21 +273,50 @@ suzune_sy, hikari_mz, 2girls, smiling, sitting on a bench, park background. suzu
 
 | 名前 | 型 | 説明 |
 |---|---|---|
-| `combined_prompt` | STRING | `fixed_tags` + 翻訳結果を結合した最終プロンプト（そのまま画像生成ワークフローへ渡せる完成形） |
+| `combined_prompt` | STRING | `fixed_tags` + 翻訳結果を結合した最終プロンプト（そのまま画像生成ワークフローへ渡せる完成形）。両者の間は改行＋空行1つで区切る。`fixed_tags`は書いたまま（末尾の`,`も残る）使う |
 | `translated_prompt` | STRING | 翻訳結果のみ（`fixed_tags`を含まない）。デバッグ・確認用 |
 
 ### 動作の仕組み
 
-- `system_prompt_file` で選んだ `.txt` の1行目（`<!-- output_mode: prompt_translation -->`）から出力モードを判定します。**変換先モデル（Anima／Krea2／Qwen-Image-Editなど）ごとに別ファイルを用意し、ここで切り替える想定**です（ノードのコード変更は不要）
+- `system_prompt_file` で選んだ `.txt` の1行目（`<!-- output_mode: prompt_translation -->`）から出力モードを判定します。**作風（アニメ調／実写）ごとに別ファイルを用意し、ここで切り替えます**（ノードのコード変更は不要。モデル固有の調整が必要になったらファイルを追加します）
 - `japanese_prompt`が空欄のときはLLMを呼ばず、`fixed_tags`をそのまま`combined_prompt`として返します（翻訳対象が無い回のパススルーとして使えます）
 - `system_prompt_file`が不正（メタデータ行が無い・`prompt_translation`以外）なときは、`fixed_tags`の内容に関わらず両出力とも空文字にします
 - 接続失敗・タイムアウト・応答フォーマット不正などを分類し、パラメータを調整しながら`max_retries`回まで自動リトライします（`YoshiakiLLMCaptionGenerator`と共通のロジック）
 - 実行結果は `modules/yoshiaki_llm/logs_translate/`（`.gitignore`対象。`YoshiakiLLMCaptionGenerator`の`logs/`とは別フォルダ）にログとして残ります。`log_prompt`をONにすると送信内容と生応答も記録されます
 
+### 同梱のシステムプロンプト
+
+キャラクターの定義やタグは`fixed_tags`に別で書く前提で、**構図・カメラ・背景・光・雰囲気などの日本語を、英語の自然文1段落（1〜4文）に翻訳する**ためのプロンプトです。タグの羅列にはしません。
+
+| ファイル | 向いている用途 | 特徴 |
+|---|---|---|
+| `translate_anime.txt` | アニメ調の画像生成モデル（Anima等） | 構図の用語（`from a low angle`、`cowboy shot`、`depth of field`等）を使って訳す |
+| `translate_photo.txt` | 実写の画像生成モデル | 上記に加えて撮影の用語（`shallow depth of field`、`bokeh`、`golden hour`、`natural light`等）を使って訳す。レンズ・カメラ・フィルムの名前（`35mm lens`等）は日本語に書かれているときだけ使う |
+
+両方に共通の決まり:
+
+- 日本語に書かれていることは、人物の描写（容姿・服装・表情）も含めて全部訳す。省きたいものは入力側で書かない
+- 書かれていないもの（物・人物・色・光・品質タグ・画家名・`anime style`や`photorealistic`などの作風の言葉）は足さない。仕上がりの作風は生成モデルと`fixed_tags`で決まる
+- 日本語から明らかに読み取れる見た目は書き足してよい（例:「夕焼け」→ `at sunset, with warm orange light`）
+- 文の順番は「構図・カメラ → 人物とポーズ → 背景 → 光と雰囲気」
+- 出力は英文だけ（前置き・説明・引用符・Markdown・改行なし）
+
+出力例（入力: `下からのアングル、雨上がりの夜の街、ネオンが水たまりに反射`）:
+
+| ファイル | 出力 |
+|---|---|
+| `translate_anime.txt` | Viewed from a low angle, a rain-washed city street at night, with neon lights reflecting in the puddles on the ground. |
+| `translate_photo.txt` | From a low angle looking upward, a city street at night just after the rain, with neon lights reflecting in puddles on the wet road. |
+
+入力に作風で訳し方が変わる言葉が無いと、2つの出力はほぼ同じになります。実写用で撮影の用語が出るのは、「逆光」「背景をぼかす」「被写界深度」などを日本語に書いたときです。
+
+`system_prompts_translate/`フォルダに1行目が`<!-- output_mode: prompt_translation -->`の`.txt`を置くと、自作のプロンプトもコンボボックスに自動で表示されます。
+
+> `translate_anime.txt`は以前`translate_anima.txt`という名前でした。旧名を選んで保存したワークフローは`system_prompt_file`を選び直してください。選び直さないと、キューに入れたときにノードが弾かれ、出力が空になります。
+
 ### 前提条件
 
 - `YoshiakiLLMCaptionGenerator`と同様、LAN上（またはlocalhost）で **Lemonade Server** または **llama-server** が起動している必要があります
-- `prompt_translation`用システムプロンプトファイルの内容そのもの（Anima版・Krea2版・Qwen-Image-Edit版）は同梱していません。`system_prompts_translate/`フォルダに`.txt`を配置するとコンボボックスに自動で表示されます
 
 ---
 
