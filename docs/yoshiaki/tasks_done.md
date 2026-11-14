@@ -24,6 +24,38 @@
 
 ---
 
+## タスク: Yoshiaki-PromptTranslator の combined_prompt を空行区切りに変更
+
+- **完了日**: 2026-11-14
+- **動作確認**: ✅済み（2026-11-14、ComfyUI上の実機でユーザーが確認）
+- **修正ファイル**:
+  - `modules/yoshiaki_llm/llm_prompt_translator_node.py` : `combine_final_prompt()`の区切りを`", "`から`"\n\n"`に変更
+  - `CLAUDE.md` : Yoshiaki-PromptTranslatorの出力の説明に区切りの仕様を追記
+- **変更内容**:
+  - `combined_prompt`で`fixed_tags`と翻訳結果の間を改行＋空行1つで区切るようにした（ユーザー要望。以前は`fixed_tags`の末尾に翻訳文が`, `でそのまま続いていた）
+  - `fixed_tags`の末尾の`,`を取り除く処理をやめ、書かれたまま結合するようにした（ユーザー要望。この処理は区切りが`, `だった頃にカンマの重複を防ぐためのもので、空行区切りでは不要）。前後の空白・改行を落とす処理は残した
+  - 翻訳結果の末尾の`,`を取り除く処理と、片方が空のときにもう片方だけを返す挙動は変えていない
+  - 単体確認: `combine_final_prompt("masterpiece, best quality,\n\nsaten ruiko ... uniform,", "From a low angle.")` → `"masterpiece, best quality,\n\nsaten ruiko ... uniform,\n\nFrom a low angle."`
+
+---
+
+## タスク: Yoshiaki-PromptTranslator用 Anima向けシステムプロンプト追加
+
+- **完了日**: 2026-11-14
+- **動作確認**: ✅済み（2026-11-14、実機で「下からのアングル、雨上がりの夜の街、ネオンが水たまりに反射」が英語の自然文1段落に翻訳されることをユーザーが確認）
+- **新規ファイル**:
+  - `modules/yoshiaki_llm/system_prompts_translate/translate_anima.txt` : 構図・背景などの日本語をAnima向けの英語自然文プロンプトに翻訳するシステムプロンプト
+- **修正ファイル**:
+  - `CLAUDE.md` : Yoshiaki-PromptTranslatorの備考を同梱プロンプトの説明に更新
+- **変更内容**:
+  - これまで`system_prompts_translate/`には`.gitkeep`しか無く、ノードを実行しても`INVALID_PROMPT_FILE`で出力が空になっていた
+  - キャラ定義・タグは`fixed_tags`側で別に書く前提で、構図・カメラ・背景・光・雰囲気の日本語を英語の自然文1段落（1〜4文）に翻訳する
+  - 人物描写が入力に含まれていればそれも翻訳する（省くかは入力側で判断）。入力に無い物・品質タグ・画風語は足さない。前置き・引用符・Markdown・改行は出させない（ノードのパースはthinking除去とtrimのみのため）
+  - ノードのコード変更なし
+- **備考**: Krea2版・Qwen-Image-Edit版はAnima版の実機確認後に作成する
+
+---
+
 ## タスク: ワイルドカードコンボの挿入もカーソル位置へ変更
 
 - **完了日**: 2026-11-14

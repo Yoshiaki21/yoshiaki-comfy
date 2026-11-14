@@ -76,7 +76,7 @@
   - 日本語プロンプトをAnima等の画像生成モデル向け英語プロンプトに変換する
   - `fixed_tags`（翻訳不要の品質タグ・score系・人数/構図タグ等、そのまま先頭に使われる）と`japanese_prompt`（翻訳対象の日本語本文）を別入力にして、日本語部分だけをLLMに渡す
   - `system_prompts_translate/`フォルダ内の`.txt`ファイル（1行目`<!-- output_mode: prompt_translation -->`）でプロンプトを切り替え可能。**変換先モデル（Anima／Krea2／Qwen-Image-Editなど）ごとに別ファイルを用意し、ここで切り替える想定**（ノードのコード変更は不要）
-  - 出力は`combined_prompt`（`fixed_tags`＋翻訳結果を結合した完成形）と`translated_prompt`（翻訳結果のみ、デバッグ用）の2つ
+  - 出力は`combined_prompt`（`fixed_tags`＋翻訳結果を結合した完成形）と`translated_prompt`（翻訳結果のみ、デバッグ用）の2つ。`combined_prompt`では`fixed_tags`と翻訳結果の間を**改行＋空行1つ**で区切る（2026-11-14変更、それ以前は`, `で1行につないでいた）。`fixed_tags`は末尾の`,`も含めて書かれたまま使い（前後の空白・改行だけ落とす）、翻訳結果は末尾の`,`を取り除く。片方が空ならもう片方だけを出す
   - `japanese_prompt`が空欄のときはLLMを呼ばず`fixed_tags`のパススルーとして扱う。`system_prompt_file`が不正なときは`fixed_tags`の有無に関わらず両出力とも空文字にする
   - `YoshiakiLLMCaptionGenerator`と共通のLemonade Server呼び出し・リトライ／タイムアウト分類・ログ書き込みロジック（`modules/yoshiaki_llm/llm_common.py`）を再利用。画像バッチという処理軸が無いため`INPUT_IS_LIST`は宣言していない（ウィジェット値はスカラーのまま届く）
   - 実行ログを`modules/yoshiaki_llm/logs_translate/`に出力（`.gitignore`対象。キャプションノードの`logs/`とは別フォルダ）
@@ -86,7 +86,7 @@
 - **備考**:
   - `class_type`は`YoshiakiPromptTranslator`、表示名は`Yoshiaki-PromptTranslator`、`CATEGORY`は`yoshiaki-comfy/LLM`
   - `system_prompts_translate/`は`YoshiakiLLMCaptionGenerator`用の`system_prompts/`とは物理的に別フォルダ。互いのコンボボックスに相手のファイルは表示されず、`output_mode`の値を間違えて逆フォルダに置いた場合も`INVALID_PROMPT_FILE`扱いで即座に失敗する（安全側）
-  - `prompt_translation`用システムプロンプトファイルの内容そのもの（Anima版・Krea2版・Qwen-Image-Edit版）は本タスクのスコープ外。配置するだけでコンボボックスに表示される
+  - 同梱のシステムプロンプトは`translate_anima.txt`（Anima向け、2026-11-14追加）のみ。キャラ定義・タグは`fixed_tags`側で別に書く前提で、構図・背景・光・雰囲気などの日本語を**英語の自然文1段落**に翻訳する（タグ列にはしない。人物描写が含まれていればそれも翻訳し、入力に無い品質タグ等は足さない）。Krea2版・Qwen-Image-Edit版はAnima版の実機確認後に作成予定で未作成。`.txt`を配置するだけでコンボボックスに表示される
   - バッチ処理（複数プロンプト一括変換）、翻訳結果の後処理（禁止語チェック等）は未対応
   - 配布予定なし、個人利用限定
 

@@ -55,14 +55,17 @@ def parse_translation_response(raw_response, failure_category=REASON_PARSE_FORMA
 
 def combine_final_prompt(fixed_tags, translated):
     # fixed_tags（品質タグ・score系・人数タグ等）を先頭、翻訳結果を後ろに置いて結合する。
+    # 両者の間は改行＋空行1つで区切る（2026-11-14変更。それ以前は ", " で1行につないでいた）。
+    # fixed_tags は末尾の "," も含めて書かれたまま使う（前後の空白・改行だけ落とす）。
+    # 翻訳結果の末尾の "," は、区切りが ", " だった頃と同じく取り除く。
     parts = []
-    fixed = (fixed_tags or "").strip().rstrip(",").strip()
+    fixed = (fixed_tags or "").strip()
     if fixed:
         parts.append(fixed)
     translated = (translated or "").strip().rstrip(",").strip()
     if translated:
         parts.append(translated)
-    return ", ".join(parts)
+    return "\n\n".join(parts)
 
 
 class YoshiakiPromptTranslator:
