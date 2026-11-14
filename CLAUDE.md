@@ -87,6 +87,7 @@
   - `class_type`は`YoshiakiPromptTranslator`、表示名は`Yoshiaki-PromptTranslator`、`CATEGORY`は`yoshiaki-comfy/LLM`
   - `system_prompts_translate/`は`YoshiakiLLMCaptionGenerator`用の`system_prompts/`とは物理的に別フォルダ。互いのコンボボックスに相手のファイルは表示されず、`output_mode`の値を間違えて逆フォルダに置いた場合も`INVALID_PROMPT_FILE`扱いで即座に失敗する（安全側）
   - 同梱のシステムプロンプトは`translate_anime.txt`（アニメ調向け、Anima等）と`translate_photo.txt`（実写向け）の2つ（2026-11-14追加）。どちらもキャラ定義・タグは`fixed_tags`側で別に書く前提で、構図・背景・光・雰囲気などの日本語を**英語の自然文1段落**に翻訳する（タグ列にはしない。人物描写が含まれていればそれも翻訳し、入力に無い品質タグ・作風の言葉は足さない）。違いは役割の説明と使う語彙だけで、実写版は撮影用語（`shallow depth of field`、`bokeh`、`golden hour`など）を使ってよく、レンズ・カメラ・フィルム名は入力に書かれたときだけ使う。`.txt`を配置するだけでコンボボックスに表示される
+  - `scene_from_toriigate.txt`（2026-11-14追加）は翻訳ではなく、ToriiGate-0.5が出力したmin_structured_md形式の**英文**からキャラ固有の要素を消すプロンプト。同じ構図・背景で別キャラの画像を作るためのもの。`japanese_prompt`にToriiGateの文章（英文のままでよい）、`fixed_tags`に新しいキャラの定義を入れる。`# 1. Thoughts about characters`を削除、キャラ名は`she`/`the girl`等に置き換え、キャラ名の見出しは`## Character`にし、ほかの見出しは残す。消すのは体の特徴（髪・瞳・肌の色、髪の長さ・髪型、獣耳・角・尻尾・翼、体型・胸の大きさ、タトゥー・ほくろ・傷）だけで、服装・小物・持ち物・ポーズ・表情・構図・背景・エフェクトは残す。出力が複数行のMarkdownになるため、応答が短すぎてリトライしたときにノードが付け足す「no markdown」の念押し（`FORMAT_CORRECTION_NOTE`）とは相性が悪い（その回だけ見出しが消える可能性がある）
   - `translate_anime.txt`は当初`translate_anima.txt`という名前だった（2026-11-14に改名）。旧名を選んで保存したワークフローは選び直しが必要。選び直さないとキュー投入時の`system_prompt_file`のコンボ検証で弾かれ、その出力系統が黙って捨てられる（`VALIDATE_INPUTS`で検証を外しているのは`model`だけ）
   - バッチ処理（複数プロンプト一括変換）、翻訳結果の後処理（禁止語チェック等）は未対応
   - 配布予定なし、個人利用限定

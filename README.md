@@ -286,7 +286,17 @@ suzune_sy, hikari_mz, 2girls, smiling, sitting on a bench, park background. suzu
 
 ### 同梱のシステムプロンプト
 
-キャラクターの定義やタグは`fixed_tags`に別で書く前提で、**構図・カメラ・背景・光・雰囲気などの日本語を、英語の自然文1段落（1〜4文）に翻訳する**ためのプロンプトです。タグの羅列にはしません。
+どれもキャラクターの定義やタグは`fixed_tags`に別で書く前提です。
+
+| ファイル | 何をするか | 入力（`japanese_prompt`） |
+|---|---|---|
+| `translate_anime.txt` | 構図・背景などの日本語を、アニメ調の画像生成モデル（Anima等）向けの英文に翻訳する | 日本語 |
+| `translate_photo.txt` | 同上、実写の画像生成モデル向け | 日本語 |
+| `scene_from_toriigate.txt` | ToriiGateが画像から書き出した説明文から、キャラ固有の要素を消して構図・背景などだけを残す（翻訳はしない） | ToriiGateの英文（min_structured_md形式） |
+
+#### `translate_anime.txt` / `translate_photo.txt`（翻訳）
+
+**構図・カメラ・背景・光・雰囲気などの日本語を、英語の自然文1段落（1〜4文）に翻訳する**ためのプロンプトです。タグの羅列にはしません。
 
 | ファイル | 向いている用途 | 特徴 |
 |---|---|---|
@@ -309,6 +319,17 @@ suzune_sy, hikari_mz, 2girls, smiling, sitting on a bench, park background. suzu
 | `translate_photo.txt` | From a low angle looking upward, a city street at night just after the rain, with neon lights reflecting in puddles on the wet road. |
 
 入力に作風で訳し方が変わる言葉が無いと、2つの出力はほぼ同じになります。実写用で撮影の用語が出るのは、「逆光」「背景をぼかす」「被写界深度」などを日本語に書いたときです。
+
+#### `scene_from_toriigate.txt`（キャラ要素の削除）
+
+翻訳ではなく、ToriiGate-0.5が画像から書き出したmin_structured_md形式の英文から、**キャラ固有の要素を消して構図・背景などだけを残す**プロンプトです。同じような構図・背景で、別のキャラの似た画像を作るときに使います。
+
+- `japanese_prompt`にToriiGateの文章を入れます（英文のままで構いません。別ノードの出力をつないでも使えます）
+- `fixed_tags`には新しいキャラの定義を書きます。`combined_prompt`は「新しいキャラの定義 → 空行 → キャラ要素を消した説明文」になります
+- `# 1. Thoughts about characters`は丸ごと削除し、キャラ名・作品名は`she`/`her`/`the girl`などに置き換えます。キャラ名の見出し（例: `## Karyl (princess connect!)`）は`## Character`になり、ほかの見出しはそのまま残ります
+- **消すもの**: 髪・瞳・肌の色、髪の長さ・髪型、獣耳・角・尻尾・翼などの体の部位、体型・胸の大きさ、タトゥー・ほくろ・傷
+- **残すもの**: 服装、髪飾りなどの小物、持ち物・武器、ポーズ、表情、構図、背景、光、エフェクト。服も変えたいときは`fixed_tags`側で上書きしてください
+- 体の特徴と他の要素が混ざった文は、体の特徴の部分だけを消します（例: 「左目が紫に光る」→「片目が強く光る」、「長い黒髪がなびく」→「髪がなびく」）
 
 `system_prompts_translate/`フォルダに1行目が`<!-- output_mode: prompt_translation -->`の`.txt`を置くと、自作のプロンプトもコンボボックスに自動で表示されます。
 
