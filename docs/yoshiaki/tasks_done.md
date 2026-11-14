@@ -24,6 +24,24 @@
 
 ---
 
+## タスク: ワイルドカードコンボの挿入もカーソル位置へ変更
+
+- **完了日**: 2026-11-14
+- **動作確認**: ⬜未確認（区切り文字の付け方はPythonへ写したロジックで13パターン確認済み。ブラウザ上での実機確認はユーザー側で実施予定）
+- **新規ファイル**:
+  - `js/yoshiaki-text-insert.js` : カーソル位置への挿入処理（`insert_at_cursor`/`track_caret`）。`registerExtension`はせずexportのみ
+- **修正ファイル**:
+  - `js/yoshiaki-wildcard.js` : 「Select to add Wildcard」の挿入を末尾追記から`insert_at_cursor(…, ", ")`へ変更。`YoshiakiWildcardProcessor`/`YoshiakiWildcardEncode`両方で`track_caret`を呼ぶ
+  - `js/yoshiaki-lora-info.js` : 直前のタスクで書いた挿入処理を共通ファイルへ移動（挙動は同じ、区切りなし）
+  - `CLAUDE.md` : YoshiakiWildcardProcessor節に挿入位置の説明を追記
+- **変更内容**:
+  - 区切りの`, `は必要な側にだけ付ける。例: `aaa|`→`aaa, X`、`aaa, |bbb`→`aaa, X, bbb`、`|bbb`→`X, bbb`、`aaa\n|`→`aaa\nX`（改行直後・先頭・既存の`,`の直後には前置しない。末尾・改行直前・`,`の直前には後置しない）
+  - 「一度もフォーカスしていない」の判定はノードではなくtextarea要素に持たせた（Processorには`yoshiaki-lora-info.js`の処理が走らないため）
+- **備考**:
+  - この環境にはnode等のJSランタイムが無く、JSの構文チェックは未実施
+
+---
+
 ## タスク: YoshiakiWildcardEncodeの「LoRA Add」をカーソル位置へ挿入するよう変更
 
 - **完了日**: 2026-11-14

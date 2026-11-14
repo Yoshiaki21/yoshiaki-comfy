@@ -26,6 +26,7 @@
   - `wildcard_text`にワイルドカード構文（`__name__`, `{a|b}`, `N#__name__`, `__name#N__`固定行選択など）を書くと`populated_text`に解決結果を生成
   - `YoshiakiWildcardEncode`はさらに`<lora:name>` / `<lora:name:weight>` / `<lora:name:model_weight:clip_weight>`構文でLoRA適用し、CLIP条件付けまで出力
   - `mode`（populate/fixed/reproduce）による実行前自動生成・固定・再現の切り替えに対応（サーバーフック込みで移植済み）
+  - 「Select to add Wildcard」で選んだワイルドカードは`wildcard_text`の**カーソル位置**へ挿入される（範囲選択中はその部分を置き換え）。区切りの`, `は前後に必要なときだけ自動で付く（先頭・改行直後・既に`,`がある位置には付けない）。テキストエリアに一度もカーソルを置いていない場合は従来どおり末尾へ`, `区切りで追記（2026-11-14変更）。挿入処理は「LoRA Add」と共通の`js/yoshiaki-text-insert.js`
   - ワイルドカードファイルの置き場所は`wildcards/`フォルダがデフォルト。ルート直下に`yoshiaki-wildcard.ini`を作り`custom_wildcards`キーで別フォルダを指定すると、そちらのみを参照する（custom-onlyモード）
 - **備考**:
   - 元のImpact-Packと異なり、ワイルドカード内容は毎回ディスクから読み直す（no-cache固定、キャッシュ設定なし）

@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { insert_at_cursor, track_caret } from "./yoshiaki-text-insert.js";
 
 // Trimmed from ComfyUI-Impact-Pack's js/impact-pack.js: only the wildcard
 // combo box + LoRA combo box + mode-widget behavior needed for
@@ -160,6 +161,7 @@ app.registerExtension({
 		const mode_widget = node.widgets.find(w => w.name === 'mode');
 		const wildcard_widget = node.widgets.find(w => w.name === 'Select to add Wildcard');
 		const lora_widget = has_lora ? node.widgets.find(w => w.name === 'Select to add LoRA') : null;
+		track_caret(wildcard_text_widget);
 
 		// --- LoRA folder filter (YoshiakiWildcardEncode only), inserted
 		// directly above the LoRA combo. Must run before the wildcard-folder
@@ -239,10 +241,9 @@ app.registerExtension({
 			set: (value) => {
 				if (value === WILDCARD_LABEL) return;
 				node._wildcard_value = value;
-				if (wildcard_text_widget.value !== '') {
-					wildcard_text_widget.value += ', ';
-				}
-				wildcard_text_widget.value += value;
+				// Inserted at the caret of wildcard_text, with ", " added
+				// only where needed (see js/yoshiaki-text-insert.js).
+				insert_at_cursor(wildcard_text_widget, value, ', ');
 			},
 			get: () => WILDCARD_LABEL
 		});

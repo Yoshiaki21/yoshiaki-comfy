@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { insert_at_cursor, track_caret } from "./yoshiaki-text-insert.js";
 
 // Standalone LoRA "info" dialog for YoshiakiWildcardEncode's "Select to add
 // LoRA" combo. Inspired by rgthree-comfy's Power Lora Loader info button
@@ -289,25 +290,6 @@ function move_widget_after(node, widget, after_widget) {
 	node.setSize(node.computeSize());
 }
 
-// Insert `text` at the textarea's caret (replacing any selection). The caret
-// position survives the blur caused by clicking the button. Falls back to
-// appending when there is no textarea or it was never focused.
-function insert_at_cursor(node, widget, text) {
-	const el = widget.inputEl;
-	if (!el || !node._wildcard_text_focused) {
-		widget.value += text;
-		return;
-	}
-	const value = widget.value ?? "";
-	const start = Math.min(el.selectionStart ?? value.length, value.length);
-	const end = Math.min(el.selectionEnd ?? start, value.length);
-	widget.value = value.slice(0, start) + text + value.slice(end);
-	const caret = start + text.length;
-	// Assigning value moves the caret to the end; put it right after the
-	// inserted text so consecutive adds line up in order.
-	el.setSelectionRange(caret, caret);
-}
-
 app.registerExtension({
 	name: "yoshiaki-comfy.lora_info",
 
@@ -342,14 +324,9 @@ app.registerExtension({
 			if (lora_name.endsWith(".safetensors")) {
 				lora_name = lora_name.slice(0, -12);
 			}
-			insert_at_cursor(node, wildcard_text_widget, `<lora:${lora_name}>`);
+			insert_at_cursor(wildcard_text_widget, `<lora:${lora_name}>`);
 		});
-		// Only trust the textarea's caret once the user has actually put it
-		// there -- an untouched textarea may report selectionStart 0, which
-		// would insert at the very top instead of the old append behavior.
-		wildcard_text_widget.inputEl?.addEventListener("focus", () => {
-			node._wildcard_text_focused = true;
-		});
+		track_caret(wildcard_text_widget);
 		move_widget_after(node, add_widget, info_widget);
 	},
 });
