@@ -303,6 +303,9 @@ app.registerExtension({
 							if (!full) return;
 							node._lora_value = full;
 							real_lora_widget.value = full;
+							// Set by js/yoshiaki-lora-info.js to refresh the
+							// read-only "trigger words" field under LoRA Add.
+							node._yoshiaki_on_lora_selected?.(full);
 						},
 					});
 				}

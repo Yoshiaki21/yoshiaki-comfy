@@ -138,7 +138,10 @@
   - `YoshiakiWildcardEncode`の「Select to add LoRA」の下に「LoRA Info」「LoRA Add」の2ボタンを追加
   - `Select to add LoRA`で選んでも即座にはプロンプトへ追加されず、選択中のLoRA名がコンボの表示に反映されるだけ（2026-09-04変更、下記タスク参照）。「LoRA Info」で内容確認、「LoRA Add」を押したときだけ`<lora:名前>`が`wildcard_text`の**カーソル位置**へ挿入される（範囲選択中はその部分を置き換え。テキストエリアに一度もカーソルを置いていない場合は末尾へ追記。2026-11-14変更、それ以前は常に末尾へ追記）
   - [rgthree-comfy](https://github.com/rgthree/rgthree-comfy)（MIT）のPower Lora Loaderにある同種機能を参考に、**独自に書き直した縮小版**（コードの移植ではない）
+  - **トリガーワード表示**（2026-11-21追加）: 「LoRA Add」の下に読み取り専用の欄を置き、`Select to add LoRA`でLoRAを選ぶたびに、そのsafetensorsのヘッダー（`__metadata__`）から読んだトリガーワードを`, `区切りで表示する（無ければ`(no trigger words)`）。**表示だけで、`wildcard_text`へ自動挿入はしない**。探す順は`modelspec.trigger_phrase`（カンマ分割）→`ss_tag_frequency["trigger_words"]`バケットのキー（lora-finalizeが書くもの）。kohyaの通常の`ss_tag_frequency`（学習タグ全部）はトリガーワード扱いしない。「LoRA Info」ダイアログにもTrigger Words欄（Copy／カーソル位置へInsert、取得元の表示）を追加
 - **備考**:
+  - トリガーワード欄は専用ルート`/yoshiaki/lora_trigger`を使う。`/yoshiaki/lora_info`は毎回ファイル全体のsha256を計算するため、選ぶたびに呼ぶと大きいLoRAで待たされる。こちらはヘッダーだけ読み、ハッシュもキャッシュも使わない（Civitaiの`trainedWords`はハッシュが要るので欄には出さず、Infoダイアログだけに出る）
+  - トリガーワード欄は`serialize = false`（`widgets_values`にもpromptにも入らない）なので保存済みワークフローの位置ずれは起きないが、ノードが1〜2行ぶん縦に伸びる。選択中のLoRA自体がワークフローに保存されない（`serializeValue`が常にラベルを返す）ため、読み込み直後の欄は空
   - モジュールは`modules/yoshiaki_lora_info/lora_info.py`（新規パッケージ、ノードではないため`NODE_CLASS_MAPPINGS`には登録しない）。サーバールートは`/yoshiaki/lora_info`（取得）・`/yoshiaki/lora_info/refresh`（Civitaiへ強制再取得）
   - 新規pip依存なし（本家rgthree-comfyは同期的な`requests`を使うが、こちらは既存の`aiohttp`で非同期に書き直した）
   - キャッシュは`modules/yoshiaki_lora_info/cache/`（ハッシュ単位、`.gitignore`対象）に完全に独立して保存。本家rgthree-comfyの`<LoRA名>.rgthree-info.json`サイドカーファイルや専用userdataディレクトリには一切触れない（同じ環境に両方入っていても干渉しない）

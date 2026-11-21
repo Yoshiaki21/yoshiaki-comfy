@@ -24,6 +24,27 @@
 
 ---
 
+## タスク: YoshiakiWildcardEncode 選択中LoRAのトリガーワード表示
+
+- **完了日**: 2026-11-21
+- **動作確認**: ⬜未確認（Python側のトリガーワード抽出は疑似safetensorsで確認済み。ComfyUI上の表示は未確認）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_lora_info/lora_info.py` : `trigger_words_from_metadata()`と`/yoshiaki/lora_trigger`ルートを追加。`_build_info()`の結果に`triggerWords`/`triggerSource`を追加
+  - `js/yoshiaki-lora-info.js` : 「LoRA Add」の下に読み取り専用のトリガーワード欄を追加。「LoRA Info」ダイアログにTrigger Words欄（Copy／Insert）を追加
+  - `js/yoshiaki-wildcard.js` : LoRAピッカーで選んだときに`node._yoshiaki_on_lora_selected`を呼ぶ
+  - `CLAUDE.md` : LoRA Infoの項に追記
+- **変更内容**:
+  - `LoRA_Trigger_Node_仕様書.md`は自動挿入の案だったが、ユーザーは「見たいときに見られればよい」ため、表示だけにした（自動挿入・「Add trigger words」トグルは入れない）
+  - トリガーワードの取得順: `modelspec.trigger_phrase`（カンマ分割）→`ss_tag_frequency["trigger_words"]`のキー。重複は除き、最初に出た順を保つ。kohyaの通常の`ss_tag_frequency`は対象外
+  - 選ぶたびに呼ぶため、ハッシュ計算をしない専用ルートにした（既存の`/yoshiaki/lora_info`はファイル全体のsha256を毎回計算する）
+  - 素早く選び直したときに古い応答で上書きしないよう、要求ごとの番号で照合
+  - 対象は`YoshiakiWildcardEncode`だけ（`YoshiakiWildcardProcessor`にはLoRAピッカーが無いため、ユーザーと相談して対象外）
+- **備考**:
+  - 欄は`serialize = false`なので`widgets_values`の位置ずれは無い。以前「LoRA Selected」欄を1行増えるという理由で廃止した経緯があるが、今回はユーザー了承済み
+
+---
+
 ## タスク: Yoshiaki-PromptTranslator用 ToriiGateの説明文からキャラ要素を消すプロンプト追加
 
 - **完了日**: 2026-11-14

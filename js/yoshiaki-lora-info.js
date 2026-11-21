@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { ComfyWidgets } from "../../scripts/widgets.js";
 import { insert_at_cursor, track_caret } from "./yoshiaki-text-insert.js";
 
 // Standalone LoRA "info" dialog for YoshiakiWildcardEncode's "Select to add
@@ -85,6 +86,40 @@ function render_trained_words(info) {
 	});
 }
 
+function render_trigger_words(info, wildcard_text_widget) {
+	const words = info.triggerWords || [];
+	if (!words.length) {
+		return el("div", { className: "yoshiaki-lora-info-trigger", text: "(no trigger words)" });
+	}
+	const text = words.join(", ");
+	const copy_btn = el("button", {
+		text: "Copy",
+		onclick: async () => {
+			await navigator.clipboard.writeText(text);
+			const original = copy_btn.textContent;
+			copy_btn.textContent = "Copied!";
+			setTimeout(() => { copy_btn.textContent = original; }, 1200);
+		},
+	});
+	const insert_btn = el("button", {
+		text: "Insert",
+		onclick: () => {
+			insert_at_cursor(wildcard_text_widget, text, ", ");
+			const original = insert_btn.textContent;
+			insert_btn.textContent = "Inserted!";
+			setTimeout(() => { insert_btn.textContent = original; }, 1200);
+		},
+	});
+	const children = [el("div", { className: "yoshiaki-lora-info-prompt-text", text })];
+	const actions = [copy_btn];
+	if (wildcard_text_widget) actions.push(insert_btn);
+	if (info.triggerSource) {
+		actions.push(el("span", { className: "yoshiaki-lora-info-words-summary", text: `from ${info.triggerSource}` }));
+	}
+	children.push(el("div", { className: "yoshiaki-lora-info-words-actions", children: actions }));
+	return el("div", { className: "yoshiaki-lora-info-trigger", children });
+}
+
 function render_prompt_block(label, text) {
 	const copy_btn = el("button", {
 		text: "Copy",
@@ -145,7 +180,7 @@ function make_fetch_civitai_button(container, lora_file, label) {
 			try {
 				const res = await api.fetchApi(`/yoshiaki/lora_info/refresh?file=${encodeURIComponent(lora_file)}`);
 				const refreshed = await res.json();
-				render_content(container, lora_file, refreshed);
+				render_content(container, lora_file, refreshed, container._wildcard_text_widget);
 			} catch (error) {
 				fetch_btn.textContent = `Failed: ${error}`;
 			}
@@ -169,8 +204,9 @@ function render_civitai_cell(container, lora_file, info) {
 	return make_fetch_civitai_button(container, lora_file, "Fetch info from Civitai");
 }
 
-function render_content(container, lora_file, info) {
+function render_content(container, lora_file, info, wildcard_text_widget) {
 	container.innerHTML = "";
+	container._wildcard_text_widget = wildcard_text_widget;
 
 	if (info.error) {
 		container.appendChild(el("div", { text: info.error }));
@@ -196,6 +232,9 @@ function render_content(container, lora_file, info) {
 	row("Civitai", render_civitai_cell(container, lora_file, info));
 	container.appendChild(table);
 
+	container.appendChild(el("h4", { text: "Trigger Words" }));
+	container.appendChild(render_trigger_words(info, wildcard_text_widget));
+
 	container.appendChild(el("h4", { text: "Trained Words" }));
 	container.appendChild(render_trained_words(info));
 
@@ -205,7 +244,7 @@ function render_content(container, lora_file, info) {
 	}
 }
 
-async function open_lora_info_dialog(lora_file) {
+async function open_lora_info_dialog(lora_file, wildcard_text_widget) {
 	inject_css();
 
 	const overlay = el("div", { className: "yoshiaki-lora-info-overlay" });
@@ -243,7 +282,7 @@ async function open_lora_info_dialog(lora_file) {
 			info = await refreshed_res.json();
 		}
 
-		render_content(content, lora_file, info);
+		render_content(content, lora_file, info, wildcard_text_widget);
 	} catch (error) {
 		content.textContent = `Failed to load LoRA info: ${error}`;
 	}
@@ -270,6 +309,9 @@ function inject_css() {
 .yoshiaki-lora-info-word.-selected { background: dodgerblue; color: #fff; }
 .yoshiaki-lora-info-words-actions { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
 .yoshiaki-lora-info-words-actions button { cursor: pointer; }
+.yoshiaki-lora-info-trigger { margin-bottom: 12px; font-size: 13px; }
+.yoshiaki-lora-info-trigger .yoshiaki-lora-info-prompt-text { margin-bottom: 6px; }
+.yoshiaki-lora-info-words-summary { color: #999; font-size: 12px; }
 .yoshiaki-lora-info-gallery { display: flex; flex-direction: column; gap: 16px; }
 .yoshiaki-lora-info-image-card { border: 1px solid #333; border-radius: 8px; padding: 8px; }
 .yoshiaki-lora-info-image-card img, .yoshiaki-lora-info-image-card video { display: block; width: 100%; max-height: 420px; object-fit: contain; border-radius: 4px; background: #000; margin-bottom: 8px; }
@@ -299,13 +341,15 @@ app.registerExtension({
 		const lora_widget = node.widgets.find((w) => w.name === "Select to add LoRA");
 		if (!lora_widget) return;
 
+		const wildcard_text_widget = node.widgets.find((w) => w.name === "wildcard_text");
+
 		const info_widget = node.addWidget("button", "LoRA Info", null, () => {
 			const current = node._lora_value;
 			if (!current || current === NO_LORA_SELECTED) {
 				alert("Select a LoRA first.");
 				return;
 			}
-			open_lora_info_dialog(current);
+			open_lora_info_dialog(current, wildcard_text_widget);
 		});
 		move_widget_after(node, info_widget, lora_widget);
 
@@ -313,7 +357,6 @@ app.registerExtension({
 		// selected (see js/yoshiaki-wildcard.js) -- this button is what
 		// actually inserts it into wildcard_text, so you can freely browse
 		// LoRAs via "LoRA Info" without them ending up in the prompt.
-		const wildcard_text_widget = node.widgets.find((w) => w.name === "wildcard_text");
 		const add_widget = node.addWidget("button", "LoRA Add", null, () => {
 			const current = node._lora_value;
 			if (!current || current === NO_LORA_SELECTED) {
@@ -328,5 +371,44 @@ app.registerExtension({
 		});
 		track_caret(wildcard_text_widget);
 		move_widget_after(node, add_widget, info_widget);
+
+		// Read-only trigger words of the selected LoRA, read from the
+		// safetensors header (/yoshiaki/lora_trigger: no hashing, so it is
+		// instant even for big files). Display only -- nothing is inserted
+		// automatically. serialize=false keeps it out of widgets_values and
+		// the prompt, so saved workflows do not shift.
+		const trigger_widget = ComfyWidgets["STRING"](node, "lora_trigger_words", ["STRING", { multiline: true }], app).widget;
+		trigger_widget.serialize = false;
+		trigger_widget.options = trigger_widget.options || {};
+		trigger_widget.options.serialize = false;
+		trigger_widget.value = "";
+		if (trigger_widget.inputEl) {
+			trigger_widget.inputEl.readOnly = true;
+			trigger_widget.inputEl.rows = 2;
+			trigger_widget.inputEl.placeholder = "Trigger words (shown when a LoRA is selected)";
+			trigger_widget.inputEl.style.opacity = 0.85;
+		}
+		move_widget_after(node, trigger_widget, add_widget);
+
+		let trigger_request = 0;
+		node._yoshiaki_on_lora_selected = async (lora_file) => {
+			const request_id = ++trigger_request;
+			trigger_widget.value = "Loading...";
+			let text;
+			try {
+				const res = await api.fetchApi(`/yoshiaki/lora_trigger?file=${encodeURIComponent(lora_file)}`);
+				const data = await res.json();
+				if (data.error) text = `(${data.error})`;
+				else if (data.triggerWords?.length) text = data.triggerWords.join(", ");
+				else text = "(no trigger words)";
+			} catch (error) {
+				console.warn("[yoshiaki-comfy] Failed to load LoRA trigger words:", error);
+				text = "(failed to load trigger words)";
+			}
+			// A newer selection was made while this one was loading.
+			if (request_id !== trigger_request) return;
+			trigger_widget.value = text;
+			node.graph?.setDirtyCanvas(true);
+		};
 	},
 });

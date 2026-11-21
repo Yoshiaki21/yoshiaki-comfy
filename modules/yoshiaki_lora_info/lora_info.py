@@ -105,6 +105,51 @@ def _trained_words_from_metadata(metadata):
     return words
 
 
+# lora-finalize (diffusion-pipe) writes the trigger words into this dedicated
+# ss_tag_frequency bucket. kohya's other buckets hold every training tag, so
+# they are NOT trigger words and are left to trainedWords only.
+TRIGGER_BUCKET = "trigger_words"
+
+
+def _unique(words):
+    seen = set()
+    out = []
+    for w in words:
+        w = w.strip() if isinstance(w, str) else ""
+        if w and w not in seen:
+            seen.add(w)
+            out.append(w)
+    return out
+
+
+def trigger_words_from_metadata(metadata):
+    """Returns (words, source) from safetensors metadata, or ([], None).
+
+    Order: modelspec.trigger_phrase (comma separated) -> the
+    ss_tag_frequency["trigger_words"] bucket.
+    """
+    if not isinstance(metadata, dict):
+        return [], None
+
+    phrase = metadata.get("modelspec.trigger_phrase")
+    if isinstance(phrase, list):
+        phrase = ",".join(p for p in phrase if isinstance(p, str))
+    if isinstance(phrase, str):
+        words = _unique(phrase.split(","))
+        if words:
+            return words, "modelspec"
+
+    freq = metadata.get("ss_tag_frequency")
+    if isinstance(freq, dict):
+        bucket = freq.get(TRIGGER_BUCKET)
+        if isinstance(bucket, dict):
+            words = _unique(bucket.keys())
+            if words:
+                return words, "ss_tag_frequency"
+
+    return [], None
+
+
 def _trained_words_from_civitai(civitai_data):
     words = {}
     raw = (civitai_data or {}).get("trainedWords") or []
@@ -185,6 +230,10 @@ def _build_info(file, file_hash, metadata, civitai):
         words.values(), key=lambda w: (w["count"] is None, -(w["count"] or 0))
     )
 
+    trigger_words, trigger_source = trigger_words_from_metadata(metadata)
+    info["triggerWords"] = trigger_words
+    info["triggerSource"] = trigger_source
+
     return info
 
 
@@ -218,6 +267,24 @@ async def yoshiaki_lora_info(request):
         return web.json_response({"error": "missing 'file' query param"}, status=400)
     info = await get_or_refresh_lora_info(file, refresh=False)
     return web.json_response(info)
+
+
+@routes.get("/yoshiaki/lora_trigger")
+async def yoshiaki_lora_trigger(request):
+    """Trigger words only, read straight from the safetensors header.
+
+    Unlike /yoshiaki/lora_info this neither hashes the file nor touches the
+    cache, so it is fast enough to call every time a LoRA is picked.
+    """
+    file = request.query.get("file")
+    if not file:
+        return web.json_response({"error": "missing 'file' query param"}, status=400)
+    path = _resolve_lora_path(file)
+    if path is None:
+        return web.json_response({"error": f"LoRA file not found: {file}"}, status=404)
+    metadata = read_safetensors_metadata(path) or {}
+    words, source = trigger_words_from_metadata(metadata)
+    return web.json_response({"file": file, "triggerWords": words, "triggerSource": source})
 
 
 @routes.get("/yoshiaki/lora_info/refresh")
