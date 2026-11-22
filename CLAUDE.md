@@ -51,6 +51,8 @@
   - `reference_tags`（optional、複数行STRING、既定空欄、2026-09-06追加）: 衣装LoRA用。衣装生成時に使った基準タグ列を渡すと、`tags`と同じ規則（`resolve_tags_per_image`。1件なら全画像へブロードキャスト、複数件なら画像ごとに1:1対応）で画像に対応付けられ、システムプロンプト側（`caption_training_costume.txt`）で「WD14候補タグのうち衣装そのものを指すものを除外する」判断材料として使われる。空欄なら従来通りプロンプトへのブロック追加自体を行わず、既存の人物用ワークフロー・システムプロンプト（`caption_training_both.txt`等）への影響はゼロ
   - **llama-server（ルータモード）対応**（2026-09-19追加）: 接続先が Lemonade でも llama-server でも動く。`lemonade_host`/`lemonade_port` を llama-server に向けるだけで切り替わり、サーバー種別は `/v1/models` の応答の形から自動判別する（判別専用のリクエストは発行しない）。SSEストリーミング・`stream_options.include_usage`・`reasoning_content` 分離・`chat_template_kwargs.enable_thinking`・画像のdata URI入力はいずれも両サーバー共通で動作する
   - **画像対応モデルのみをコンボに表示**（2026-09-19追加、llama-server接続時のみ）: 本ノードは画像を必須入力とするため、サーバーがモデルごとの対応modality情報を返す場合（llama-server の `architecture.input_modalities`）は画像入力に対応したモデルだけを `model` コンボに出す。Lemonade はこの情報を返さないため従来どおり全件が出る。繋がっているが画像対応モデルが0件の場合は `(no vision-capable model on this server)` と表示し、サーバーに繋がらない場合の表示と区別する
+  - **`top_p`は送信しない**（2026-11-22変更）: リクエストに`top_p`を含めず、サーバー側の設定（llama-serverの`presets.ini`等）の値をそのまま使わせる。以前は内部固定値`1.0`を常に送っていたため、preset側の`top_p`が上書きされていた。開始時のサマリ行は`top_p=server`と表示する。`YoshiakiPromptTranslator`も共通の`build_chat_payload()`を使うため同じ挙動
+  - **`temperature`は0なら送信しない**（2026-11-22変更、既定値も0.3→0に変更）: `temperature`が0のときはリクエストに含めず、サーバー側の設定（presets.ini等）の値を使わせる。0より大きい値を入れたときだけその値を送る（presetと違う値を試したいとき用）。リトライ時の「+0.2ずつ上げる」調整（13.2）は、0（送らない）のときは行わず`max_tokens`の縮小だけにする（サーバー側の実際の値が分からないため）。ログでは送らない場合`temp=server`と表示する。ウィジェットに「0 = 送信しない」のtooltipを追加
   - **コンテキスト長の取得**（2026-09-19追加）: 13.6.1 の `max_tokens` 自動増量のクランプに使うコンテキスト長を、`max_context_window`（Lemonade）→ `meta.n_ctx`（llama-server、ロード中のモデルのみ）→ `status.args` の `--ctx-size`（llama-server、全モデル）の順に解決する
 - **備考**:
   - `class_type`は`YoshiakiLLMCaptionGenerator`、表示名は`Yoshiaki-LLMCaptionGenerator`、`CATEGORY`は`yoshiaki-comfy/LLM`
@@ -59,6 +61,7 @@
   - 2026-09-08の`tags`/`image_names`の`forceInput`化でこれらのウィジェットが無くなるため、`widgets_values`を位置で復元する古いフロントエンドでは保存済みワークフローの値が2つ分ずれる可能性がある（`widgets_values_named`を持つ新しいフロントエンドでは名前で復元されるため影響なし）。また`tags`は必須入力のため、未接続だと実行時に「入力が不足」エラーになる（以前は空欄のまま実行できた）
   - 統合元リポジトリの開発履歴は[docs/yoshiaki/tasks_done.LLM.md](docs/yoshiaki/tasks_done.LLM.md)、詳細仕様書は[docs/yoshiaki/LLM_Caption_Node_指示書.md](docs/yoshiaki/LLM_Caption_Node_指示書.md)として本リポジトリに保存（本体の`docs/yoshiaki/tasks_done.md`には統合せず、別ファイルとして参照用に保管）
   - 2026-09-06、Lemonade Server呼び出し・リトライ／タイムアウト分類・ログ書き込み・システムプロンプトのメタデータ判定など画像非依存の共通ロジックを`modules/yoshiaki_llm/llm_common.py`に切り出した（`YoshiakiPromptTranslator`との共有のため）。本ノード固有のロジック（画像前処理・PART1/PART2分割・trigger_word処理等）は`llm_caption_node.py`にそのまま残っており、本ノードの入出力・挙動に変更はない
+  - `temperature`=0 は「greedyを送る」ではなく「送らない」の意味になった。greedy相当にしたいときは0.01等を入れるか、preset側で設定する。既定値の変更は新規配置のノードにだけ効き、保存済みワークフローの値（0.3等）はそのまま送られる
   - 2026-09-19の llama-server 対応でウィジェットの追加・削除・並べ替えは行っていないため、保存済みワークフローの位置ずれは発生しない。ただし llama-server 接続時は `model` の候補が画像対応モデルだけに減るため、画像非対応モデルを選んで保存していたワークフローは JS 側の既存ロジック（候補に無ければ先頭を選ぶ）で別モデルへ切り替わる
   - llama.cpp のコンテキスト超過の実挙動（2026-09-19 実機確認）: `max_tokens` 単体が `n_ctx` を超えてもサーバーはエラーにせず内部で丸める。HTTP 400（`exceed_context_size_error`）になるのは**プロンプト自体**が `n_ctx` を超えた場合で、`classify_error` では `http_400`＝13.2 の縮小対象外になりリトライしても回復しない。クランプの効果は「13.6 の倍増が実際のコンテキスト長で頭打ちになる」点にある
   - `status.args` の `--ctx-size` は起動時の要求値であり、VRAM不足等で llama.cpp 側が小さく確保することがある（実測: `--ctx-size 65536` に対し実際の `meta.n_ctx` は 40960）。このため `--ctx-size` 由来の値は暫定値として扱い、モデルがロードされた後の呼び出しで `meta.n_ctx` の確定値へ差し替える
@@ -82,6 +85,7 @@
   - 実行ログを`modules/yoshiaki_llm/logs_translate/`に出力（`.gitignore`対象。キャプションノードの`logs/`とは別フォルダ）
   - `model`コンボの「Refresh Models」ボタン・host/port変更時の自動再取得は`YoshiakiLLMCaptionGenerator`と共通の仕組み（`js/yoshiaki-llm.js`）で本ノードにも対応済み
   - **llama-server（ルータモード）対応**（2026-09-19追加）: 共通ロジック（`llm_common.py`）側の対応により、本ノードも Lemonade / llama-server のどちらにも接続できる。ただし本ノードは画像を扱わないため、`YoshiakiLLMCaptionGenerator` で有効にしている**画像対応モデルへの絞り込みは行わず、常に全モデルが `model` コンボに出る**
+  - `top_p`はリクエストに含めない。`temperature`も0（既定値）なら送らず、リトライ時の温度上げもしない（2026-11-22変更、`YoshiakiLLMCaptionGenerator`と共通。サーバー側の設定値が使われる）
   - 起動時・F5時・キュー投入時の接続先を`yoshiaki-llm.ini`から解決する仕組みと、`VALIDATE_INPUTS(cls, model)`による`model`のコンボ検証除外も`YoshiakiLLMCaptionGenerator`と共通（詳細は同ノードの項を参照）。`yoshiaki-llm.ini`は両ノードで共有する1ファイルで、どちらのノードの再取得でも更新される
 - **備考**:
   - `class_type`は`YoshiakiPromptTranslator`、表示名は`Yoshiaki-PromptTranslator`、`CATEGORY`は`yoshiaki-comfy/LLM`

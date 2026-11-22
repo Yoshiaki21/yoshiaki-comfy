@@ -24,6 +24,28 @@
 
 ---
 
+## タスク: Yoshiaki-LLMCaptionGenerator / PromptTranslator で top_p と temperature=0 を送らないように変更
+
+- **完了日**: 2026-11-22
+- **動作確認**: ⬜未確認（`build_chat_payload()`の戻り値と`next_attempt_params()`のリトライ値をPythonで確認済み。実機での生成は未確認）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_llm/llm_common.py` : `FIXED_TOP_P`を削除し、`build_chat_payload()`から`top_p`を外した。`uses_server_temperature()`/`format_temperature()`を追加し、`temperature`が0以下なら送らない。`shrink_retry_params()`は0のとき温度を上げない
+  - `modules/yoshiaki_llm/llm_caption_node.py` : `FIXED_TOP_P`のimportを削除、開始時のサマリ行を`top_p=server`に変更。`temperature`の既定値を0にしtooltip追加、ログの温度表記を`format_temperature()`経由に
+  - `modules/yoshiaki_llm/llm_prompt_translator_node.py` : `temperature`の既定値を0にしtooltip追加
+  - `CLAUDE.md` : 両ノードの項に追記
+- **変更内容**:
+  - ユーザーがllama-serverの`presets.ini`で`top_p`を設定しているため、ノード側から送らずサーバー側の値を使わせる。以前は`1.0`固定で常に送っており、presetの値を上書きしていた
+  - `temperature`は0なら送らない（既定値0）。0より大きい値を入れたときだけ送るので、presetと違う値を試したいときに使える
+  - リトライ（timeout / parse_format）の`temperature +0.2`は、0起点だと2回目以降に0.2/0.4が送られてしまうため、0のときは行わない（`max_tokens`の縮小のみ）
+  - ウィジェットの追加・並べ替えは無いため、保存済みワークフローの位置ずれは無し
+- **備考**:
+  - Lemonade接続時は、送らない場合のLemonade／モデル側の既定値が使われる
+  - `temperature=0`（greedy）を明示して送る手段は無くなった。必要なら0.01等で代用
+  - 既定値の変更は新規配置ノードのみ。保存済みワークフローに0.3等が入っていれば、それが送られる
+
+---
+
 ## タスク: YoshiakiWildcardEncode 選択中LoRAのトリガーワード表示
 
 - **完了日**: 2026-11-21

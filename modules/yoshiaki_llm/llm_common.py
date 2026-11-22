@@ -57,8 +57,8 @@ TRANSLATION_OUTPUT_MODES = ("prompt_translation",)
 INVALID_PROMPT_FILE_REASON = "missing_or_invalid_output_mode_header"
 REASON_INVALID_PROMPT_FILE = "invalid_prompt_file"
 
-# 5.3 top_p は内部固定値
-FIXED_TOP_P = 1.0
+# 5.3 top_p はリクエストに含めない（2026-11-22）。サーバー側の設定（llama-server の
+# presets.ini 等）の値をそのまま使わせるため。以前は内部固定値 1.0 を常に送っていた。
 
 # 13.5 リクエストはストリーミングで送る。
 # Lemonade Server は「クライアントへ書き込む際に接続をポーリングする」実装（v11.7.0 PR #3133）
@@ -479,15 +479,25 @@ def parse_system_prompt_file(filename, valid_modes, directory):
     return output_mode, "\n".join(lines[1:]).lstrip("\n")
 
 
+def uses_server_temperature(temperature):
+    # 5.3 temperature が 0 以下のときはリクエストに含めず、サーバー側の設定
+    # （llama-server の presets.ini 等）の値を使わせる（2026-11-22）。
+    # そのため temperature=0（greedy）を明示して送る手段は無い。必要なら 0.01 等で代用する。
+    return temperature is None or temperature <= 0
+
+
+def format_temperature(temperature):
+    # ログ表記用。送らない場合は "0" ではなく "server" と出し、0 を送ったと誤読させない
+    return "server" if uses_server_temperature(temperature) else str(temperature)
+
+
 def build_chat_payload(model, messages, enable_thinking, temperature, max_tokens):
     # 5.3 enable_thinking は chat template 側のフラグとして渡す（llama.cpp / vLLM 系の
     # OpenAI互換サーバー共通の指定方法）。サーバー側が未対応の場合は無視されるだけで害はない。
-    return {
+    payload = {
         "model": model,
         "messages": messages,
-        "temperature": temperature,
         "max_tokens": max_tokens,
-        "top_p": FIXED_TOP_P,
         "chat_template_kwargs": {"enable_thinking": bool(enable_thinking)},
         # 13.5 切断をサーバーに伝えるためストリーミングで受け取る（上のコメント参照）。
         # include_usage を付けると最終チャンクに usage が入り、6.3 の分類・13.6 のクランプ・
@@ -495,6 +505,9 @@ def build_chat_payload(model, messages, enable_thinking, temperature, max_tokens
         "stream": True,
         "stream_options": {"include_usage": True},
     }
+    if not uses_server_temperature(temperature):
+        payload["temperature"] = temperature
+    return payload
 
 
 def read_sse_completion(conn, response, deadline):
@@ -805,6 +818,10 @@ def shrink_retry_params(attempt, base_max_tokens, base_temperature):
     # 下限でクリップしたうえで、元の設定値を超えないようにする
     # （ユーザーが下限より小さい max_tokens を設定している場合に増えてしまうのを防ぐ）
     max_tokens = min(base_max_tokens, max(floor, scaled))
+    if uses_server_temperature(base_temperature):
+        # サーバー側の temperature は分からないので +0.2 しても意味がない。
+        # 送らないまま max_tokens の縮小だけ行う
+        return max_tokens, base_temperature
     # 浮動小数の誤差がログに出ないよう丸める（0.3 + 0.4 = 0.7000000000000001 対策）
     temperature = round(min(RETRY_TEMPERATURE_CEILING,
                             base_temperature + RETRY_TEMPERATURE_STEP * steps), 2)

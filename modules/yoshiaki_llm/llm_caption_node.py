@@ -11,11 +11,11 @@ from PIL import Image
 from .llm_common import (
     CAPTION_OUTPUT_MODES, CLAMP_LOG_NOTE, DEFAULT_LEMONADE_HOST, DEFAULT_LEMONADE_PORT,
     DEFAULT_MAX_RETRIES, ERROR_LOG_FILENAME, FALLBACK_SYSTEM_PROMPT_LABEL,
-    FIXED_TOP_P, INVALID_PROMPT_FILE_REASON, MAX_MAX_RETRIES, MIN_MAX_RETRIES,
+    INVALID_PROMPT_FILE_REASON, MAX_MAX_RETRIES, MIN_MAX_RETRIES,
     MIN_VALID_RESPONSE_CHARS, REASON_INVALID_PROMPT_FILE, REASON_PARSE_FORMAT, REASON_TIMEOUT,
     RETRYABLE_EXCEPTIONS, SYSTEM_PROMPTS_DIR, CaptionParseError,
     build_chat_payload, cancel_request, classify_error, classify_parse_failure,
-    describe_params_source, estimate_prompt_tokens, extract_response_text,
+    describe_params_source, estimate_prompt_tokens, format_temperature, extract_response_text,
     first_value, format_duration, format_response_for_log, format_response_timing,
     get_model_context_window, list_system_prompt_files, next_attempt_params,
     parse_system_prompt_file, request_chat_completion, resolve_max_retries, resolve_model_list,
@@ -391,7 +391,8 @@ class YoshiakiLLMCaptionGenerator:
                 "lemonade_api_key": ("STRING", {"default": ""}),
                 "model": (model_list,),
                 "enable_thinking": ("BOOLEAN", {"default": True}),
-                "temperature": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 2.0, "step": 0.05}),
+                "temperature": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.05,
+                                          "tooltip": "0 = 送信しない（サーバー側の設定値を使う）"}),
                 # 13.6 これは固定の生成上限ではなく「自動増量の初期値」。
                 # finish_reason=="length"（parse_length）で失敗すると次の試行で倍増する。
                 "max_tokens": ("INT", {
@@ -545,8 +546,8 @@ class YoshiakiLLMCaptionGenerator:
         # 7.4.1 デバッグ用の設定値サマリ。バッチ内で値は不変のため実行開始時に1回だけ出力する
         # （7.4 のコンソール出力簡略化を行う際もこの行は残すこと）
         summary = (f"開始: {len(images)}枚, model={model}, mode={output_mode or 'INVALID'}, "
-                   f"prompt={system_prompt_file}, thinking={enable_thinking}, temp={temperature}, "
-                   f"top_p={FIXED_TOP_P}, max_tokens={max_tokens}, timeout={timeout_sec}s, "
+                   f"prompt={system_prompt_file}, thinking={enable_thinking}, temp={format_temperature(temperature)}, "
+                   f"top_p=server, max_tokens={max_tokens}, timeout={timeout_sec}s, "
                    f"max_retries={max_retries}")
         print(f"[YoshiakiLLMCaptionGenerator] {summary}")
         print(f"[YoshiakiLLMCaptionGenerator] ログ出力先: {log_dir}")
@@ -668,7 +669,7 @@ class YoshiakiLLMCaptionGenerator:
                         write_prompt_log(
                             log_dir,
                             f"RESPONSE {label} (attempt {attempt}/{max_retries}, {timing}, "
-                            f"max_tokens={attempt_max_tokens}, temp={attempt_temperature}):",
+                            f"max_tokens={attempt_max_tokens}, temp={format_temperature(attempt_temperature)}):",
                             format_response_for_log(response_payload),
                         )
                     raw_response = extract_response_text(response_payload)
@@ -707,7 +708,7 @@ class YoshiakiLLMCaptionGenerator:
                     note_text = ("".join(f" {note}" for note in notes))
                     write_log(log_dir,
                               f"RETRY: {label} attempt={attempt}/{max_retries} "
-                              f"max_tokens={attempt_max_tokens} temperature={attempt_temperature} "
+                              f"max_tokens={attempt_max_tokens} temperature={format_temperature(attempt_temperature)} "
                               f"applied={params_source} reason={reason}{note_text} detail={e}")
                     if attempt == max_retries:
                         # 7.4 コンソールはファイル名＋簡易理由のみ。詳細はログファイル参照
