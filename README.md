@@ -198,7 +198,8 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 | `system_prompt_file` | COMBO | [`system_prompts/`](modules/yoshiaki_llm/system_prompts) フォルダ内の `.txt` から選択 |
 | `lemonade_host` / `lemonade_port` / `lemonade_api_key` | STRING/INT/STRING | LLMサーバーのAPI接続先（Lemonade Server / llama-server のどちらでも可。ウィジェット名は保存済みワークフローとの互換のため`lemonade_`のまま） |
 | `model` | COMBO | 接続先から取得したモデル一覧。**llama-server接続時は画像入力に対応したモデルのみ**が表示される |
-| `temperature` / `max_tokens` / `timeout_sec` / `max_retries` 等 | — | 生成パラメータ・リトライ回数の設定 |
+| `temperature` | FLOAT | 既定値`0`。**0のときはリクエストに含めず、サーバー側の設定（llama-serverの`presets.ini`等）の値を使う**。0より大きい値を入れたときだけその値を送る（詳細は下記「temperature / top_p の扱い」） |
+| `max_tokens` / `timeout_sec` / `max_retries` 等 | — | 生成パラメータ・リトライ回数の設定 |
 
 **出力**: `text` (STRING、旧名`caption_text`) — `image`と同じ枚数・同じ順序のキャプション文字列リスト。ラベルは接続先の`Yoshiaki LoRA Caption Save`の`text`入力に合わせている
 
@@ -207,6 +208,17 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 - `system_prompt_file` で選んだ `.txt` の1行目（`<!-- output_mode: tags_only|caption_only|both -->`）から出力モードを自動判定します。ウィジェットではなくファイル側の指定です
 - 接続失敗・タイムアウト・応答フォーマット不正などを分類し、パラメータを調整しながら`max_retries`回まで自動リトライします
 - 実行結果は `modules/yoshiaki_llm/logs/`（`.gitignore`対象）にログとして残ります。`log_prompt`をONにすると送信内容と生応答も記録されます
+
+### temperature / top_p の扱い
+
+サンプリング設定はサーバー側（llama-serverの`presets.ini`等でモデルごとに設定）に任せる前提です。`YoshiakiPromptTranslator`も同じ扱いです。
+
+- **`top_p`は送りません**。ウィジェットもありません（以前は`1.0`固定で常に送っていたため、preset側の値が上書きされていました）
+- **`temperature`は0（既定値）なら送りません**。presetと違う値を試したいときだけ、0より大きい値を入れてください
+- `temperature`が0のときは、リトライ時に温度を+0.2ずつ上げる調整も行わず、`max_tokens`を減らすだけにします（サーバー側の実際の値が分からないため）
+- ログには、送っていない値が`temp=server` / `top_p=server`と出ます
+- `temperature=0`（greedy）を明示して送る方法はありません。必要なら`0.01`などを入れるか、preset側で設定してください
+- 既定値が0になったのは新しく置いたノードだけです。以前保存したワークフローに`0.3`などが入っている場合は、その値が送られます
 
 ### 前提条件
 
@@ -267,7 +279,8 @@ suzune_sy, hikari_mz, 2girls, smiling, sitting on a bench, park background. suzu
 | `system_prompt_file` | COMBO | [`system_prompts_translate/`](modules/yoshiaki_llm/system_prompts_translate) フォルダ内の `.txt` から選択。`YoshiakiLLMCaptionGenerator`用の`system_prompts/`とは別フォルダで、互いのファイルは混在しない |
 | `lemonade_host` / `lemonade_port` / `lemonade_api_key` | STRING/INT/STRING | LLMサーバーのAPI接続先（Lemonade Server / llama-server のどちらでも可） |
 | `model` | COMBO | 接続先から取得したモデル一覧（本ノードは画像を扱わないため絞り込みはせず全件表示） |
-| `temperature` / `max_tokens` / `timeout_sec` / `max_retries` 等 | — | 生成パラメータ・リトライ回数の設定 |
+| `temperature` | FLOAT | 既定値`0`。0のときは送らずサーバー側の設定値を使う（`YoshiakiLLMCaptionGenerator`の「temperature / top_p の扱い」と共通。`top_p`も送らない） |
+| `max_tokens` / `timeout_sec` / `max_retries` 等 | — | 生成パラメータ・リトライ回数の設定 |
 
 **出力**
 
