@@ -24,6 +24,55 @@
 
 ---
 
+## タスク: Yoshiaki-ResolutionLatent のプリセットを各モデルの公式推奨解像度に合わせて調整
+
+- **完了日**: 2026-11-23
+- **動作確認**: ✅済み（プリセットを警告なしで読み込めること、各モデル・各MPでの計算サイズ、MOSS-Imageの公式Gradio `fit_size`と画素数5種×比率8種の40通りで同じサイズになることを確認）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `yoshiaki-resolution-latent.toml.example` : MOSS-Imageの`mp_range`・アスペクト比を追加・変更し、出典をコメントで追記
+  - `CLAUDE.md` : 本ノードの項に推奨解像度の根拠を追記
+- **変更内容**:
+  - Anima: 公式モデルカード「Works at resolutions between 512^2 and 1536^2 pixels」→ `mp_range = [0.25, 2.25]`（指示書の値が既に一致していたので変更なし）
+  - Krea2: ComfyUI公式ドキュメント「1K to 2K」、公式モデルカード（Krea-2-Turbo）の例は1024x1024/2048x2048 → `mp_range = [1.0, 4.0]`（変更なし）
+  - MOSS-Image: 公式USERGUIDE「1M, 1.5M, 2M total pixels推奨、0.25M〜4Mまで外挿可、16の倍数」→ `mp_range = [1.0, 2.0]`を追加。アスペクト比を公式Gradioプリセット（`gradio_presets.py`の`RATIOS`）の横長・正方形に合わせ、`2:1`・`3:1`・`4:1`・`8:1`を追加
+  - Anima・Krea2には公式の解像度・アスペクト比リストが無いため、アスペクト比は指示書の初期値のまま
+- **備考**:
+  - 生成済みの`yoshiaki-resolution-latent.toml`は前タスクのテストで作られたばかりで未編集（exampleと同一）だったため、exampleで上書きした
+  - Hugging Faceの`krea/Krea-2`・`OpenMOSS*/MOSS-Image`はゲート付きで読めず、Krea-2-TurboのカードとGitHubの`OpenMOSS/MOSS-Image`（README・USERGUIDE.md・gradio_presets.py）を参照した
+
+---
+
+## タスク: Yoshiaki-ResolutionLatent（解像度＋空潜在画像 一体化ノード）の新規作成
+
+- **完了日**: 2026-11-23
+- **動作確認**: ✅済み（2026-11-23 ユーザーが実機確認。ComfyUI 0.46.2 / frontend 1.59.6。事前に`calc.py`の単体テスト21件と、同じケースをJS版`compute()`でQuickJS実行して一致を確認済み。ComfyUIコンテナ内のPythonで`generate()`を直接呼び、各モデル・VAEあり/なし・未知モデル名・エラー入力の挙動と、`fix_empty_latent_channels`後の形状が標準Empty Latentと一致することを確認済み）
+- **新規ファイル**:
+  - `modules/yoshiaki_resolution_latent/__init__.py` : パッケージ
+  - `modules/yoshiaki_resolution_latent/calc.py` : 比率解析・サイズ計算（ComfyUI非依存）
+  - `modules/yoshiaki_resolution_latent/presets.py` : TOML読み込み・検証・exampleからの自動生成
+  - `modules/yoshiaki_resolution_latent/nodes.py` : `YoshiakiResolutionLatent`ノード
+  - `modules/yoshiaki_resolution_latent/server.py` : `GET /yoshiaki/resolution_latent/presets`
+  - `modules/yoshiaki_resolution_latent/tests/test_calc.py` / `cases.json` / `pytest.ini` : 単体テスト（cases.jsonはJS版と共有）
+  - `js/yoshiaki-resolution-latent.js` : アスペクト比リスト切替・倍数/MP自動入力・ライブ表示・実行結果表示
+  - `js/yoshiaki-resolution-latent-calc.js` : `calc.py`のJS版（exportのみ、拡張登録なし）
+  - `yoshiaki-resolution-latent.toml.example` : 配布用の初期プリセット
+  - `docs/yoshiaki/ResolutionLatent_Node_指示書.md` : 仕様書（リポジトリ直下の「解像度＋空潜在画像 一体化ノード 実装指示書.md」を移動）
+- **修正ファイル**:
+  - `__init__.py` : 本ノードのMAPPINGSとserverを`try`付きで登録
+  - `.gitignore` : `/yoshiaki-resolution-latent.toml`を追加
+  - `CLAUDE.md` : 「含まれるカスタムノード」に本ノードの項を追加
+  - `README.md` : ノード一覧と本ノードの節を追加
+- **変更内容**:
+  - 指示書7章の実装前確認5点をComfyUI 0.46.2のソースで確認: Anima・Krea2は`Wan21`（16ch・1/8）、MOSS-Imageは`Flux2`（128ch・1/16）で、指示書の仮の値がそのまま正しかった。`fix_empty_latent_channels`が次元追加まで行うので4次元出力で足りる。EmptyLatentImageの戻り値は`samples`＋`downscale_ratio_spacial`。VAEは`latent_channels`・`spacial_compression_encode()`・`latent_dim`。`VALIDATE_INPUTS`に宣言した入力はCOMBOチェックから外れる
+  - 指示書に無かった判断: 汎用プリセットではVAEとの食い違い警告を出さない。`mp_range`の判定は、比率入力では入力したMP、固定解像度では実際のMPで行う（比率入力で実際のMPを使うと、16:9・1.00MP＝0.996MPがKrea2の下限1.0を割って誤警告になるため）
+  - 単体テストは指示書の10件＋追加8件（ラベル付き・小数比率・`×`区切り・0比率・不正区切り・16MP・最大解像度超え・mp_range外）。期待値はすべて指示書どおり
+- **備考**:
+  - 開発機にnode/pytestが無いため、テストは`uvx pytest`、JS版は`uv run --with quickjs`で実行した
+  - `.gitignore`と`CLAUDE.md`・`tasks_done.md`はCRLF。Pythonのテキストモードで書き戻すとLFに変わって全行差分になるので注意
+
+---
+
 ## タスク: Yoshiaki-LLMCaptionGenerator / PromptTranslator で top_p と temperature=0 を送らないように変更
 
 - **完了日**: 2026-11-22

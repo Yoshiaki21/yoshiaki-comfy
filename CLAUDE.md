@@ -203,3 +203,34 @@
   - 配布予定なし、個人利用限定
 
 ---
+
+### Yoshiaki-ResolutionLatent
+
+- **実装日**: 2026-11-23
+- **カスタムノードの機能の概要**:
+  - 標準の「Resolution Selector」と「Empty Latent Image」を1つにまとめたノード。モデル別プリセット（TOML）からアスペクト比・メガピクセル・倍数を選び、幅・高さ（INT）と全ゼロの潜在画像（LATENT）を出力する
+  - プリセットはルート直下の`yoshiaki-resolution-latent.toml`（`.gitignore`対象）。無ければ起動時に`yoshiaki-resolution-latent.toml.example`をコピーして作る。以後は手書きファイル扱いで、ノードから書き戻さない。起動時に1回だけ読む（編集後はComfyUI再起動）
+  - アスペクト比の書式: `16:9` / `2.39:1` / `1.85`（`:1`扱い） / 固定解像度`1152x896`（`x`・`×`）。半角スペース以降はラベル。横長と正方形だけ書き、縦長は「向き」欄で作る（固定解像度にも適用）。「カスタム」を選ぶと「カスタム比率」欄の文字列を使う
+  - サイズ計算: `scale = sqrt(mp×1024² / (rw×rh))`、各辺を倍数へ**四捨五入**（`floor(x/m+0.5)*m`。Pythonの`round()`は偶数丸めでJSとずれるため使わない）。16:9・1.00MP・倍数16 → 1360×768
+  - 倍数は必要倍数（汎用＝実際の縮小率、それ以外＝`lcm(preset.multiple, 実際の縮小率)`）の倍数へ切り上げる（警告付き）
+  - 潜在画像の形状: VAE接続時はVAEの`latent_channels`・`spacial_compression_encode()`、未接続時はプリセットの`latent_channels`・`downscale`。`[batch, C, h/d, w/d]`の4次元で、`{"samples", "downscale_ratio_spacial": d}`を返す（標準EmptyLatentImageと同じキー・device・dtype）
+  - 確定したプリセット値（ComfyUI 0.46.2の`comfy/supported_models.py`・`latent_formats.py`で確認）: Anima・Krea2 → `Wan21`（16ch・1/8・3次元）、MOSS-Image → `Flux2`（128ch・1/16・2次元）、汎用 → 4ch・1/8（標準Empty Latent Imageと同じ。本体の自動補正に任せる）
+  - 推奨解像度（2026-11-23に各公式情報で調整。出典は`.example`のコメントに記載）: Anima `mp_range = [0.25, 2.25]`（公式「512²〜1536²で動作」）、Krea2 `[1.0, 4.0]`（ComfyUI公式「1K〜2K」、公式カードの例は1024²/2048²）、MOSS-Image `[1.0, 2.0]`（公式USERGUIDE「1M/1.5M/2M推奨、0.25M〜4Mまで外挿可、辺は16の倍数」）。MOSS-Imageのアスペクト比は公式Gradioプリセットの横長・正方形（1:1, 4:3, 3:2, 16:9, 2:1, 3:1, 4:1, 8:1）で、公式の`fit_size`と全画素数プリセット×比率で同じサイズになることを確認済み。Anima・Krea2は公式の解像度リストが無いため、アスペクト比は指示書の初期値のまま。既定MPは3モデルとも1.0
+  - JS（`js/yoshiaki-resolution-latent.js`）: ユーザーが「モデル」を変えるとアスペクト比の選択肢をそのモデルのリスト＋「カスタム」に差し替え、「倍数」「メガピクセル」にプリセット値を入れる。ワークフロー読み込み時は選択肢の差し替えだけで値は上書きしない（リストに無い保存値は一時的に選択肢へ追加して警告）。ノード下部に幅・高さ・MP・潜在形状のライブ表示（プリセット値）、実行後はPythonの`ui`から実際の形状・決定元（VAE／プリセット／汎用）・警告を表示
+  - サーバールート: `GET /yoshiaki/resolution_latent/presets`
+  - 計算部分は`modules/yoshiaki_resolution_latent/calc.py`（ComfyUI非依存）と`js/yoshiaki-resolution-latent-calc.js`の二重実装。テストケース`tests/cases.json`を両方で共有している
+  - 詳細仕様は[docs/yoshiaki/ResolutionLatent_Node_指示書.md](docs/yoshiaki/ResolutionLatent_Node_指示書.md)
+- **備考**:
+  - `class_type`は`YoshiakiResolutionLatent`、表示名は`Yoshiaki-ResolutionLatent`、`CATEGORY`は`yoshiaki-comfy/latent`。入力の表示名は日本語（`display_name`）、出力の`RETURN_NAMES`は`潜在画像`/`幅`/`高さ`
+  - 実装前確認（ComfyUI 0.46.2）: `fix_empty_latent_channels`（KSampler・SamplerCustom系の両方から呼ばれる）は、全ゼロの潜在画像のチャンネル数をモデルに合わせ、`downscale_ratio_spacial`が違えばnearest-exactでリサイズし、`latent_dimensions==3`なら次元を足す。そのため4次元で出せば十分で、5次元出力は実装していない（Anima・Krea2・MOSSの3モデルで、標準Empty Latentと補正後の形状が一致することを確認済み）
+  - `VALIDATE_INPUTS(cls, model_preset, aspect_ratio)`でこの2つだけCOMBOの標準チェックを外している（プリセットから消したモデル名・アスペクト比で保存したワークフローも警告付きで実行できる）。**`**kwargs`を付けないこと**（他の入力のmin/maxチェックまで外れる）
+  - 汎用プリセットではVAEとの食い違い警告を出さない（汎用は4ch・1/8なので、最近のVAEをつなぐと必ず食い違うため）
+  - 汎用プリセット（1/8）を縮小率16のモデル（MOSS等）で使うと、本体が潜在画像を1/2にリサイズする。倍数8で`幅/8`が奇数になると、出力の幅・高さと実際の画像サイズが8pxずれる（標準Empty Latentと同じ挙動）。既定の倍数16なら起きない
+  - 「カスタム比率」欄は「カスタム」以外のとき`widget.disabled`でグレーアウトする（非表示にはしていない）
+  - 表示用DOMウィジェットは`serialize = false`。`widgets_values`にもpromptにも入らない
+  - 単体テストは`pytest modules/yoshiaki_resolution_latent/tests`（`tests/pytest.ini`でrootdirを固定。無いとpytestがルートの`__init__.py`をimportして`folder_paths`が無いと失敗する）
+  - 動作確認したフロントエンド: `comfyui_frontend_package` 1.59.6（ComfyUI 0.46.2、2026-11-23 ユーザーが実機確認）
+  - 本ノードの読み込み失敗でパック全体は止めない（ルート`__init__.py`で`try`）
+  - 配布予定なし、個人利用限定
+
+---

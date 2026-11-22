@@ -15,6 +15,7 @@
 | **Yoshiaki WD14 Tagger** (`YoshiakiWD14Tagger`) | 画像をWD14系ONNXモデルでタグ付けする（booruタグ形式）。タグの優先順位並べ替え・ワイルドカード対応の除外タグをサポート |
 | **Yoshiaki Save Image JXL** (`YoshiakiSaveImageJXL`) | save-image-extended と同じ方式でファイル名・フォルダを決めて JPEG XL（.jxl）で保存し、再生成に必要なパラメータ（seed・プロンプト・サンプラー・モデル・全ノードの値）をXMPに書き込む |
 | **Yoshiaki Load Image JXL** (`YoshiakiLoadImageJXL`) | inputフォルダの JPEG XL（.jxl）を読み込み、`Yoshiaki Save Image JXL` がXMPに書いたプロンプト・seed・サンプラー設定をノード上に表示し、出力ソケットからも取り出せる |
+| **Yoshiaki-ResolutionLatent** (`YoshiakiResolutionLatent`) | 標準の Resolution Selector と Empty Latent Image を1つにまとめたノード。モデル別プリセット（Anima / Krea2 / MOSS-Image など）のアスペクト比・メガピクセルから幅・高さを計算し、全ゼロの潜在画像を出力する |
 
 `YoshiakiWildcardProcessor` / `YoshiakiWildcardEncode` は [ComfyUI-Impact-Pack](https://github.com/ltdrdata/ComfyUI-Impact-Pack) の `ImpactWildcardProcessor` / `ImpactWildcardEncode` を、この2ノードだけ使う用途に切り出して単独パック化したものです。`YoshiakiLLMCaptionGenerator` はもともと別リポジトリ [ComfyUI-LLM-Tagger](https://github.com/Yoshiaki21/ComfyUI-LLM-Tagger) として作っていたノードをこちらに統合したものです（当時の開発履歴は [docs/yoshiaki/tasks_done.LLM.md](docs/yoshiaki/tasks_done.LLM.md)、詳細仕様は [docs/yoshiaki/LLM_Caption_Node_指示書.md](docs/yoshiaki/LLM_Caption_Node_指示書.md) 参照）。`YoshiakiLoRACaptionLoad` / `YoshiakiLoRACaptionSave` は自分のフォーク [Image-Captioning-in-ComfyUI](https://github.com/Yoshiaki21/Image-Captioning-in-ComfyUI)（本家: [LarryJane491/Image-Captioning-in-ComfyUI](https://github.com/LarryJane491/Image-Captioning-in-ComfyUI)）から統合したものです。いずれもノード名・Pythonパッケージ名を独自のものに変更しているため、元のリポジトリと同一環境に共存インストールしても衝突しません。
 
@@ -540,6 +541,50 @@ XMPに記録する「主seed」「主サンプラー」をノードIDで指定�
 - メタデータが無い・壊れている場合もエラーにはならず、「XMPメタデータなし」（`Parameters` が無いときは「簡易メタデータ（Parametersなし）」）と表示して既定値を出力する
 - pillow-jxl-plugin 1.3.8 の制約: アニメーションJXLは1フレーム目だけ、16bitのRGBは8bitに丸められて読み込まれる（16bitグレースケールは16bitのまま読める）
 - outputフォルダから直接は読めない。inputフォルダへコピーするか、アップロードボタンを使う
+
+---
+
+## Yoshiaki-ResolutionLatent
+
+標準の「Resolution Selector」＋「Empty Latent Image」を1つにしたノード。モデルを選ぶとアスペクト比の選択肢・倍数・メガピクセルがそのモデル向けに切り替わり、ノード下部に計算結果（幅×高さ・MP・潜在画像の形状）がその場で表示されます。詳細仕様は [docs/yoshiaki/ResolutionLatent_Node_指示書.md](docs/yoshiaki/ResolutionLatent_Node_指示書.md)。
+
+| 入力 | 内容 |
+|---|---|
+| VAE（任意） | 接続すると潜在画像のチャンネル数・縮小率をVAEから決める |
+| モデル | プリセットファイルのモデル名 |
+| アスペクト比 | 選択モデルのリスト＋「カスタム」 |
+| カスタム比率 | 「カスタム」選択時のみ使用（`2.39:1` / `1.85` / `1152x896` など） |
+| 向き | 横長／縦長（長辺を幅にするか高さにするか。固定解像度にも適用） |
+| メガピクセル | 1.0MP = 1024×1024。固定解像度のときは無視 |
+| 倍数 | 幅・高さの丸め単位。モデルに必要な倍数に満たなければ切り上げる |
+| バッチサイズ | 潜在画像の枚数 |
+
+| 出力 | 内容 |
+|---|---|
+| 潜在画像 | 全ゼロの LATENT（KSampler等へ） |
+| 幅 / 高さ | ピクセル単位のINT |
+
+### プリセットファイル
+
+ルート直下の `yoshiaki-resolution-latent.toml`（git管理外）。無ければ初回起動時に `yoshiaki-resolution-latent.toml.example` からコピーされます。テーブル1つが1モデルで、書いた順がモデル欄の順になります。編集後はComfyUIの再起動が必要です。
+
+```toml
+[Anima]
+latent_channels = 16      # VAE未接続時のチャンネル数
+downscale = 8             # VAE未接続時の縮小率
+multiple = 16             # モデル選択時に「倍数」へ入れる値（必要な最小倍数も兼ねる）
+default_mp = 1.0          # モデル選択時に「メガピクセル」へ入れる値
+mp_range = [0.25, 2.25]   # 推奨範囲（外れたら警告のみ。任意）
+aspect_ratios = ["1:1 Square", "4:3", "16:9 Widescreen", "1152x896"]
+```
+
+`aspect_ratios` には横長と正方形だけを書きます（縦長は「向き」欄で作る）。半角スペース以降は自由なラベルです。`generic = true` のモデルは汎用扱いで、標準 Empty Latent Image と同じ 4ch・1/8 の潜在画像を出し、チャンネル数などはComfyUI本体の自動補正に任せます。
+
+**注意点**:
+- プリセットから消したモデル名・アスペクト比で保存したワークフローも、警告付きで実行できる（モデルは「汎用」扱い）
+- ワークフローを開き直しても、倍数・メガピクセル・アスペクト比は保存時のまま（モデルを手で切り替えたときだけ自動入力される）
+- 比率を `16x9` と書くと固定解像度（16×9px）と解釈されてエラーになる。比率は `16:9` のように `:` で書く
+- ライブ表示の潜在形状はプリセット値。VAEを接続した場合の実際の形状は実行後に表示される
 
 ---
 

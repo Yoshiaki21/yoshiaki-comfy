@@ -72,6 +72,17 @@ except ImportError as e:
     logging.error(f"[yoshiaki-comfy] YoshiakiLoadImageJXL disabled: {e} (pip install pillow-jxl-plugin)")
     _LOAD_JXL_NODE_CLASS_MAPPINGS, _LOAD_JXL_NODE_DISPLAY_NAME_MAPPINGS = {}, {}
 
+# YoshiakiResolutionLatent: a failure here must not stop the rest of the pack.
+try:
+    from yoshiaki_resolution_latent.nodes import (  # noqa: E402
+        NODE_CLASS_MAPPINGS as _RESLATENT_NODE_CLASS_MAPPINGS,
+        NODE_DISPLAY_NAME_MAPPINGS as _RESLATENT_NODE_DISPLAY_NAME_MAPPINGS,
+    )
+    import yoshiaki_resolution_latent.server  # noqa: F401, E402  (registers /yoshiaki/resolution_latent/presets)
+except Exception as e:
+    logging.exception(f"[yoshiaki-comfy] YoshiakiResolutionLatent disabled: {e}")
+    _RESLATENT_NODE_CLASS_MAPPINGS, _RESLATENT_NODE_DISPLAY_NAME_MAPPINGS = {}, {}
+
 NODE_CLASS_MAPPINGS = {
     **_WILDCARD_NODE_CLASS_MAPPINGS,
     **_LLM_NODE_CLASS_MAPPINGS,
@@ -80,6 +91,7 @@ NODE_CLASS_MAPPINGS = {
     **_WD14TAGGER_NODE_CLASS_MAPPINGS,
     **_SAVE_JXL_NODE_CLASS_MAPPINGS,
     **_LOAD_JXL_NODE_CLASS_MAPPINGS,
+    **_RESLATENT_NODE_CLASS_MAPPINGS,
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
     **_WILDCARD_NODE_DISPLAY_NAME_MAPPINGS,
@@ -89,6 +101,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     **_WD14TAGGER_NODE_DISPLAY_NAME_MAPPINGS,
     **_SAVE_JXL_NODE_DISPLAY_NAME_MAPPINGS,
     **_LOAD_JXL_NODE_DISPLAY_NAME_MAPPINGS,
+    **_RESLATENT_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 nodes.EXTENSION_WEB_DIRS["yoshiaki-comfy"] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'js')

@@ -1,0 +1,20 @@
+[
+  {"text": "16:9", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "width": 1360, "height": 768, "warnings": 0},
+  {"text": "16:9", "orientation": "縦長", "mp": 1.0, "multiple": 16, "req": 16, "width": 768, "height": 1360, "warnings": 0},
+  {"text": "9:16", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "width": 1360, "height": 768, "warnings": 0},
+  {"text": "2.39:1", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "width": 1584, "height": 656, "warnings": 0},
+  {"text": "1:1", "orientation": "縦長", "mp": 1.0, "multiple": 16, "req": 16, "width": 1024, "height": 1024, "warnings": 0},
+  {"text": "1152x896", "orientation": "縦長", "mp": 3.0, "multiple": 16, "req": 16, "width": 896, "height": 1152, "warnings": 0},
+  {"text": "1000x700", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "width": 1008, "height": 704, "warnings": 1},
+  {"text": "16:9", "orientation": "横長", "mp": 1.0, "multiple": 8, "req": 16, "width": 1360, "height": 768, "multiple_out": 16, "warnings": 1},
+  {"text": "16x9", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "error": true},
+  {"text": "abc", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "error": true},
+  {"text": "16:9 Widescreen", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "width": 1360, "height": 768, "warnings": 0},
+  {"text": "1.85", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "width": 1392, "height": 752, "warnings": 0},
+  {"text": "1152×896", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "width": 1152, "height": 896, "warnings": 0},
+  {"text": "0:1", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "error": true},
+  {"text": "16-9", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "error": true},
+  {"text": "16:9", "orientation": "横長", "mp": 16.0, "multiple": 16, "req": 16, "width": 5456, "height": 3072, "warnings": 0},
+  {"text": "20000x1000", "orientation": "横長", "mp": 1.0, "multiple": 16, "req": 16, "error": true},
+  {"text": "1:1", "orientation": "横長", "mp": 3.0, "multiple": 16, "req": 16, "mp_range": [1.0, 2.25], "width": 1776, "height": 1776, "warnings": 1}
+]

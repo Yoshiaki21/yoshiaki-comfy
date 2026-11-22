@@ -224,6 +224,9 @@ __marimo__/
 /yoshiaki-llm.ini
 /yoshiaki-llm.ini.*.tmp
 
+# yoshiaki-comfy: YoshiakiResolutionLatent presets (created from the .example on first start, then hand-edited)
+/yoshiaki-resolution-latent.toml
+
 # yoshiaki-comfy: YoshiakiLLMCaptionGenerator run logs (generated at runtime)
 modules/yoshiaki_llm/logs/
 

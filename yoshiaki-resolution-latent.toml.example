@@ -1,0 +1,59 @@
+# yoshiaki-resolution-latent.toml
+# YoshiakiResolutionLatent のモデル別プリセット。
+# このファイルが無い状態で ComfyUI を起動すると、この .example から
+# yoshiaki-resolution-latent.toml が自動で作られる（git管理外。以後は手で編集する）。
+#
+# 編集後はComfyUIを再起動。aspect_ratiosは横長と正方形だけ書く（縦長は「向き」欄で作る）
+#
+# キー:
+#   latent_channels  VAE未接続時のチャンネル数（必須）
+#   downscale        VAE未接続時の空間縮小率（必須）
+#   multiple         モデル選択時に「倍数」欄へ入れる値。必要な最小倍数も兼ねる（必須）
+#   default_mp       モデル選択時に「メガピクセル」欄へ入れる値（必須）
+#   mp_range         推奨範囲 [最小, 最大]。外れたら警告のみ（任意）
+#   aspect_ratios    "16:9" / "2.39:1" / "1.85" / "1152x896"。半角スペース以降はラベル（必須）
+#   generic          true なら汎用扱い（標準Empty Latent Imageと同じ 4ch・1/8 で出し、本体の自動補正に任せる）
+#
+# latent_channels / downscale は ComfyUI 0.46.2 の comfy/latent_formats.py で確認済み
+#   Anima, Krea2 : Wan21 (16ch, 1/8)   MOSS-Image : Flux2 (128ch, 1/16)
+
+["汎用"]
+generic = true
+latent_channels = 4
+downscale = 8
+multiple = 16
+default_mp = 1.0
+aspect_ratios = ["1:1 Square", "5:4", "4:3", "3:2", "16:10", "16:9 Widescreen", "21:9 Ultrawide", "2.39:1 Cinemascope"]
+
+# 各モデルの値の出典（2026-11-23 調査）
+#   Anima      : 公式モデルカード「Works at resolutions between 512^2 and 1536^2 pixels」
+#                -> mp_range 0.25〜2.25。解像度リストの公式指定は無い
+#   Krea2      : ComfyUI公式ドキュメント「Krea 2 supports outputs from 1K to 2K」、
+#                公式モデルカードの例は 1024x1024 / 2048x2048 -> mp_range 1.0〜4.0。解像度リストの公式指定は無い
+#   MOSS-Image : 公式 USERGUIDE「1M, 1.5M, or 2M total pixels を推奨、0.25M〜4M まで外挿可、
+#                辺は16の倍数（でないとエラー）」。アスペクト比は公式Gradioプリセット
+#                （1:8〜8:1）のうち横長と正方形。サイズの計算式（sqrt(画素数×比率) を16の倍数へ丸め）は本ノードと同じ
+
+[Anima]
+latent_channels = 16
+downscale = 8
+multiple = 16
+default_mp = 1.0
+mp_range = [0.25, 2.25]
+aspect_ratios = ["1:1 Square", "5:4", "4:3", "3:2", "16:9 Widescreen", "1152x896", "1216x832"]
+
+[Krea2]
+latent_channels = 16
+downscale = 8
+multiple = 16
+default_mp = 1.0
+mp_range = [1.0, 4.0]
+aspect_ratios = ["1:1 Square", "4:3", "3:2", "16:9 Widescreen", "21:9 Ultrawide", "2.39:1 Cinemascope"]
+
+["MOSS-Image"]
+latent_channels = 128
+downscale = 16
+multiple = 16
+default_mp = 1.0
+mp_range = [1.0, 2.0]
+aspect_ratios = ["1:1 Square", "4:3", "3:2", "16:9 Widescreen", "2:1", "3:1", "4:1", "8:1"]
