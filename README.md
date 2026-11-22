@@ -566,7 +566,7 @@ XMPに記録する「主seed」「主サンプラー」をノードIDで指定�
 
 ### プリセットファイル
 
-ルート直下の `yoshiaki-resolution-latent.toml`（git管理外）。無ければ初回起動時に `yoshiaki-resolution-latent.toml.example` からコピーされます。テーブル1つが1モデルで、書いた順がモデル欄の順になります。編集後はComfyUIの再起動が必要です。
+ルート直下の `yoshiaki-resolution-latent.toml`（git管理外）。同梱のひな型には 汎用・Anima・Krea2・MOSS-Image・Illustrious のプリセットが入っています（各モデルの推奨解像度の出典はひな型のコメント参照）。無ければ初回起動時に `yoshiaki-resolution-latent.toml.example` からコピーされます。テーブル1つが1モデルで、書いた順がモデル欄の順になります。編集後はComfyUIの再起動が必要です。
 
 ```toml
 [Anima]

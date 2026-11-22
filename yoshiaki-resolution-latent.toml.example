@@ -15,7 +15,7 @@
 #   generic          true なら汎用扱い（標準Empty Latent Imageと同じ 4ch・1/8 で出し、本体の自動補正に任せる）
 #
 # latent_channels / downscale は ComfyUI 0.46.2 の comfy/latent_formats.py で確認済み
-#   Anima, Krea2 : Wan21 (16ch, 1/8)   MOSS-Image : Flux2 (128ch, 1/16)
+#   Anima, Krea2 : Wan21 (16ch, 1/8)   MOSS-Image : Flux2 (128ch, 1/16)   Illustrious : SDXL (4ch, 1/8)
 
 ["汎用"]
 generic = true
@@ -33,6 +33,9 @@ aspect_ratios = ["1:1 Square", "5:4", "4:3", "3:2", "16:10", "16:9 Widescreen", 
 #   MOSS-Image : 公式 USERGUIDE「1M, 1.5M, or 2M total pixels を推奨、0.25M〜4M まで外挿可、
 #                辺は16の倍数（でないとエラー）」。アスペクト比は公式Gradioプリセット
 #                （1:8〜8:1）のうち横長と正方形。サイズの計算式（sqrt(画素数×比率) を16の倍数へ丸め）は本ノードと同じ
+#   Illustrious: SDXL系。公式モデルカード（OnomaAIResearch/Illustrious-XL-v1.0）は 1536x1536 をネイティブ解像度としている
+#                -> mp_range 0.25〜2.25（下限は512²。公式の記載は無く、コミュニティガイドの「512x512〜1536x1536」に合わせた）。
+#                v0.1系の派生モデル（WAI等）は1MP前後が基本なので既定MPは1.0。固定解像度はSDXL標準のバケット（約1MP）
 
 [Anima]
 latent_channels = 16
@@ -57,3 +60,11 @@ multiple = 16
 default_mp = 1.0
 mp_range = [1.0, 2.0]
 aspect_ratios = ["1:1 Square", "4:3", "3:2", "16:9 Widescreen", "2:1", "3:1", "4:1", "8:1"]
+
+[Illustrious]
+latent_channels = 4
+downscale = 8
+multiple = 16
+default_mp = 1.0
+mp_range = [0.25, 2.25]
+aspect_ratios = ["1:1 Square", "5:4", "4:3", "3:2", "16:9 Widescreen", "21:9 Ultrawide", "1152x896 SDXL", "1216x832 SDXL", "1344x768 SDXL", "1536x640 SDXL"]

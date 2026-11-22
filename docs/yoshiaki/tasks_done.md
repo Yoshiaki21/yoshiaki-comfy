@@ -24,6 +24,26 @@
 
 ---
 
+## タスク: Yoshiaki-ResolutionLatent に Illustrious 用プリセットを追加
+
+- **完了日**: 2026-11-23
+- **動作確認**: ⬜未確認（プリセットが警告なしで読み込まれ、モデル欄の末尾に出ること、1.0MP・2.25MPでの各サイズの計算結果を確認済み。実機での生成は未確認）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `yoshiaki-resolution-latent.toml.example` : `[Illustrious]`を末尾に追加し、出典をコメントで追記
+  - `CLAUDE.md` : 本ノードの項にIllustriousプリセットの根拠を追記
+  - `README.md` : プリセットの説明に対象モデルを追記
+- **変更内容**:
+  - Illustrious XLはSDXL系のため、ComfyUIの`latent_formats.SDXL`（基底クラスと同じ4ch・1/8）を確認して`latent_channels = 4`・`downscale = 8`
+  - `mp_range = [0.25, 2.25]`: 上限は公式モデルカード（OnomaAIResearch/Illustrious-XL-v1.0）のネイティブ解像度1536×1536。下限は公式記載が無いため、コミュニティガイドの「512x512〜1536x1536」に合わせた
+  - `default_mp = 1.0`: v0.1系の派生モデル（WAI等）は1MP前後で使うのが基本のため
+  - アスペクト比: 1:1・5:4・4:3・3:2・16:9・21:9に加え、SDXL標準バケットの固定解像度`1152x896`・`1216x832`・`1344x768`・`1536x640`（ラベル`SDXL`）
+- **備考**:
+  - 生成済みの`yoshiaki-resolution-latent.toml`はexampleと同一（未編集）だったため、exampleで上書きした
+  - 公式のv2.0以降のモデルカードには解像度の記載が見つからなかった
+
+---
+
 ## タスク: Yoshiaki-ResolutionLatent のプリセットを各モデルの公式推奨解像度に合わせて調整
 
 - **完了日**: 2026-11-23
