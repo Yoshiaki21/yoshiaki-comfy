@@ -1,6 +1,5 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { ComfyWidgets } from "../../scripts/widgets.js";
 import { insert_at_cursor, track_caret } from "./yoshiaki-text-insert.js";
 
 // Standalone LoRA "info" dialog for YoshiakiWildcardEncode's "Select to add
@@ -377,23 +376,63 @@ app.registerExtension({
 		// instant even for big files). Display only -- nothing is inserted
 		// automatically. serialize=false keeps it out of widgets_values and
 		// the prompt, so saved workflows do not shift.
-		const trigger_widget = ComfyWidgets["STRING"](node, "lora_trigger_words", ["STRING", { multiline: true }], app).widget;
+		// A single-line <input> in our own DOM widget (not the standard
+		// multiline STRING, whose textarea has a frontend-side minimum height
+		// and grows when the node is resized). Min = max height keeps it at
+		// one line; extra node height goes to wildcard_text instead.
+		const trigger_input = document.createElement("input");
+		trigger_input.type = "text";
+		trigger_input.readOnly = true;
+		trigger_input.placeholder = "Trigger words (shown when a LoRA is selected)";
+		Object.assign(trigger_input.style, {
+			width: "100%",
+			height: "100%",
+			boxSizing: "border-box",
+			padding: "0 8px",
+			fontSize: "12px",
+			opacity: 0.85,
+			color: "var(--input-text, #ddd)",
+			background: "var(--comfy-input-bg, #222)",
+			border: "1px solid var(--border-color, #444)",
+			borderRadius: "4px",
+		});
+		// The frontend positions a DOM widget `margin` px inside its slot on
+		// every side and shrinks it by 2*margin (default margin 10 -> a 24px
+		// slot left only 4px). Use a small margin and make the slot "button
+		// height + 2*margin" so the box is as tall as the LoRA Add button.
+		// The wrapper's side padding lines it up with the canvas buttons,
+		// which sit 15px in from the node edge.
+		const TRIGGER_MARGIN = 4;
+		const trigger_height = (globalThis.LiteGraph?.NODE_WIDGET_HEIGHT ?? 20) + TRIGGER_MARGIN * 2;
+		const trigger_wrap = document.createElement("div");
+		Object.assign(trigger_wrap.style, {
+			width: "100%",
+			height: "100%",
+			boxSizing: "border-box",
+			padding: `0 ${15 - TRIGGER_MARGIN}px`,
+		});
+		trigger_wrap.appendChild(trigger_input);
+		const trigger_widget = node.addDOMWidget("lora_trigger_words", "yoshiaki-lora-trigger", trigger_wrap, {
+			serialize: false,
+			hideOnZoom: false,
+			margin: TRIGGER_MARGIN,
+			getMinHeight: () => trigger_height,
+			getMaxHeight: () => trigger_height,
+		});
 		trigger_widget.serialize = false;
 		trigger_widget.options = trigger_widget.options || {};
 		trigger_widget.options.serialize = false;
-		trigger_widget.value = "";
-		if (trigger_widget.inputEl) {
-			trigger_widget.inputEl.readOnly = true;
-			trigger_widget.inputEl.rows = 2;
-			trigger_widget.inputEl.placeholder = "Trigger words (shown when a LoRA is selected)";
-			trigger_widget.inputEl.style.opacity = 0.85;
-		}
+		const set_trigger_text = (text) => {
+			trigger_input.value = text;
+			// Long lists are cut off in one line -- hover shows the full text.
+			trigger_input.title = text;
+		};
 		move_widget_after(node, trigger_widget, add_widget);
 
 		let trigger_request = 0;
 		node._yoshiaki_on_lora_selected = async (lora_file) => {
 			const request_id = ++trigger_request;
-			trigger_widget.value = "Loading...";
+			set_trigger_text("Loading...");
 			let text;
 			try {
 				const res = await api.fetchApi(`/yoshiaki/lora_trigger?file=${encodeURIComponent(lora_file)}`);
@@ -407,7 +446,7 @@ app.registerExtension({
 			}
 			// A newer selection was made while this one was loading.
 			if (request_id !== trigger_request) return;
-			trigger_widget.value = text;
+			set_trigger_text(text);
 			node.graph?.setDirtyCanvas(true);
 		};
 	},

@@ -24,6 +24,23 @@
 
 ---
 
+## タスク: YoshiakiWildcardEncode のトリガーワード欄を1行にする
+
+- **完了日**: 2026-11-23
+- **動作確認**: ✅済み（2026-11-23 ユーザーが実機確認。欄が「LoRA Add」と同じ高さの1行で表示されることを確認）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `js/yoshiaki-lora-info.js` : トリガーワード欄を標準の複数行STRINGから、1行の読み取り専用`<input>`を置いた自前のDOMウィジェットに変更
+  - `CLAUDE.md` : LoRA Info項のトリガーワード表示の記述を更新
+- **変更内容**:
+  - 標準の複数行STRINGウィジェットはフロントエンド側で最小の高さが決まっていて、ノードを縦に広げると一緒に伸びるため、`rows`を1にしても1行の高さにならなかった
+  - `node.addDOMWidget("lora_trigger_words", ...)`に`getMinHeight`/`getMaxHeight`を同じ値で指定して1行の高さに固定。ノードを縦に広げた分は`wildcard_text`に回る
+  - 最初は高さを24にしたが、実機では欄がほぼ潰れて表示された。フロントエンド（1.59.6）はDOMウィジェットを上下左右`margin`（既定10px）ずつ内側に縮めて置くため、24pxから中身が4pxしか残っていなかった。`margin: 4`にし、高さを「`LiteGraph.NODE_WIDGET_HEIGHT`＋margin×2」にして「LoRA Add」ボタンと同じ高さにした。左右はラッパーdivのpaddingでボタンの位置（ノード端から15px）に揃えた
+  - はみ出す長いトリガーワードは、マウスを乗せると`title`で全文が出る。選択してコピーは従来どおり可能
+  - `serialize = false`は従来どおりで、保存済みワークフローの位置ずれは起きない。使わなくなった`ComfyWidgets`のimportを削除
+
+---
+
 ## タスク: Yoshiaki-ResolutionLatent に Illustrious 用プリセットを追加
 
 - **完了日**: 2026-11-23
