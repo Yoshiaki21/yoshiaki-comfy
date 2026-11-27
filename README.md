@@ -194,7 +194,7 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 | `image` | IMAGE | キャプション対象の画像（バッチ/リストどちらも可） |
 | `tags`（ノード上の表示は`文字列`） | STRING | WD14 Tagger等から受け取るタグ文字列（このノード自体はタグ生成ノードに依存しない。単なるテキスト入力）。接続専用ソケット（`forceInput`）で、表示名はWD14 Taggerの出力ラベルに合わせている |
 | `image_names`（ノード上の表示は`Name list`、任意） | STRING | ログに出す画像ファイル名一覧。`Yoshiaki LoRA Caption Load`の`Name list`を繋ぐ。接続専用ソケット |
-| `reference_tags`（任意） | STRING | 衣装LoRA用。`caption_training_costume.txt`を使うときに、可変にしたい要素の生成時に使ったプロンプトを入力する（空欄時はテキストエリア内に「system pronptのcaption_training_costumeを使用する際に使用し、可変したい要素の生成時に使ったプロントを入力」と薄く表示される）。`caption_training_both_2char.txt`使用時は、2人目キャラクターの識別情報欄として転用する（詳細は下記「2人キャラクターのキャプション生成」参照） |
+| `reference_tags`（任意） | STRING | 衣装LoRA用。`caption_training_costume.txt`を使うときに、可変にしたい要素の生成時に使ったプロンプトを入力する（空欄時はテキストエリア内に「system pronptのcaption_training_costumeを使用する際に使用し、可変したい要素の生成時に使ったプロントを入力」と薄く表示される）。`caption_training_both_2char_v2.txt`使用時は、2人目キャラクターの識別情報欄として転用する（詳細は下記「2人キャラクターのキャプション生成」参照）。`caption_training_both_1char_set_v2.txt`使用時は、衣装タグと除外するタグの欄として使う（詳細は下記「キャラ＋固定衣装のキャプション生成」参照） |
 | `trigger_word` | STRING | 学習用データセットのトリガーワード（任意。指定するとタグ列の先頭に必ず挿入される） |
 | `system_prompt_file` | COMBO | [`system_prompts/`](modules/yoshiaki_llm/system_prompts) フォルダ内の `.txt` から選択 |
 | `lemonade_host` / `lemonade_port` / `lemonade_api_key` | STRING/INT/STRING | LLMサーバーのAPI接続先（Lemonade Server / llama-server のどちらでも可。ウィジェット名は保存済みワークフローとの互換のため`lemonade_`のまま） |
@@ -230,35 +230,85 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 - 本ノードは画像を必須入力とするため、モデルごとの対応modality情報を返すサーバー（llama-server）に接続した場合は、`model` コンボに画像入力対応モデルだけを表示します。Lemonade はこの情報を返さないため全モデルが表示されます
 - ComfyUI-Impact-Pack等のような他のカスタムノードパックへのコード依存はありません（`tags`入力にWD14 Taggerを繋ぐのはワークフロー上の運用であり、コード上の依存ではありません）
 
-### 2人キャラクターのキャプション生成（`caption_training_both_2char.txt`）
+### 2人キャラクターのキャプション生成（`caption_training_both_2char_v2.txt`）
 
-1枚の画像に2人のキャラクター（それぞれ別のトリガーワードを持つ）が一緒に写っている学習画像用に、通常の1人用`caption_training_both.txt`を拡張したシステムプロンプトです。**ノードのコード修正は不要**で、衣装LoRA用に用意されている`reference_tags`欄を2人目キャラの識別情報欄として転用する形で動きます。
+2人のキャラクター（それぞれ別のトリガーワードを持つ）が一緒に写っている学習画像用のシステムプロンプトです。2人の**関係・やり取り**を覚えさせるデータセットを想定しています。**ノードのコード修正は不要**で、衣装LoRA用の`reference_tags`欄を2人目キャラの識別情報欄として使います。
+
+- **どの画像にも2人が必ず写っている前提**です。1人だけの画像は別のバッチに分け、1人用のプロンプト（`caption_training_both.txt`等）で処理してください
+- 2人の関わり（`holding hands`・`hug`などの接触、`looking at another`・`eye contact`などの視線、`side-by-side`・`face-to-face`などの位置関係、一緒にしている動作）を最優先で書きます。タグ候補に無くても、画像ではっきり見えれば追加します
+- 体の特徴（髪色・基本の髪型・瞳の色・肌の色・ほくろ・体型・角や尻尾などの体の部位）は、どちらのキャラについてもキャプションに書きません（トリガーワードに覚えさせるため）。髪型（ポニーテール等）・胸の大きさ・髪飾りなどの小物・表情・一時的な状態（`blush`等）は書きます
 
 **入力の割り当て**
 
 | 欄 | 役割 |
 |---|---|
-| `trigger_word` | キャラA（主キャラ）のトリガーワード。従来通りタグ列先頭に自動挿入される |
-| `reference_tags` | キャラBの識別情報。以下の固定フォーマットで入力する |
+| `trigger_word` | キャラAのトリガーワード。従来通りタグ列先頭に自動挿入される |
+| `reference_tags` | キャラBの識別情報。以下の固定フォーマットで入力する（**必須**） |
+| `system_prompt_file` | `caption_training_both_2char_v2.txt` |
 
 ```
 IDENTITY_BLOCK
 character_b_trigger_word: hikari_mz
-character_b_features: short hair, black hair, red eyes
+character_b_features: black hair, red eyes
 ```
 
 - 1行目`IDENTITY_BLOCK`は固定文字列。2〜3行目のトリガーワード・特徴を実際のキャラBに合わせて書き換える
-- `character_b_features`（髪色・瞳色などの固定特徴）は、画像中のどちらがキャラBかをLLMに識別させるためだけの情報で、生成されるタグ・自然文には一切出力されない
-- 2人とも写っていない（1人だけの）画像バッチでは`reference_tags`を空欄にする。その場合は従来の1人用`caption_training_both.txt`と同じ挙動になる（写っている1人＝`trigger_word`のキャラ、という判定）
+- `character_b_features`は、画像中のどちらがキャラBかをLLMに見分けさせるためだけの情報で、タグ・自然文には出力されない。見分けには**変わらない特徴**（髪色・瞳の色・肌の色・ほくろ・角や尻尾など）だけが使われ、髪型・服・位置・ポーズは使われないため、ここには変わらない特徴を書く（`short hair`のような髪型は見分けに使われない）
 - `reference_tags`はウィジェット直接入力だとバッチ内の全画像へ同じ内容がブロードキャストされる（`tags`と同じ`resolve_tags_per_image`の仕組み）。同じ2人組の画像だけをまとめてバッチ処理する運用を想定している。バッチ内で組み合わせが変わる場合は、外部からSTRINGリストを`reference_tags`へ接続すれば画像ごとに変えられる
 
 **出力フォーマット**
 
-タグ列にはキャラBのトリガーワードが平置きの1タグとして含まれ（キャラAは従来通りコードが自動挿入）、自然文側で「誰が何をしているか」を文構造で書き分ける。
+タグ列は「キャラAのトリガーワード（コードが自動挿入）, キャラBのトリガーワード, `2girls`, 関わりのタグ, 構図・ポーズ・表情・服・小物・動作・背景」の順の1列です。人数タグは`2girls`だけを使います（`1girl`・`solo`・`multiple girls`は使わない）。自然文では2人の関わりを先に書き、服・ポーズ・動作がどちらのものかを文の構造で書き分けます。
 
 ```
-suzune_sy, hikari_mz, 2girls, smiling, sitting on a bench, park background. suzune_sy sits on the left side of the bench smiling, while hikari_mz sits beside her on the right, both in casual outfits.
+suzune_sy, hikari_mz, 2girls, holding hands, looking at another, side-by-side, upper body, sitting, smile, blush, twintails, school uniform, classroom. suzune_sy and hikari_mz sit side by side in a classroom, holding hands and looking at each other. suzune_sy smiles while wearing a school uniform, and hikari_mz, in the same uniform with her hair in twintails, blushes.
 ```
+
+> 以前の`caption_training_both_2char.txt`は`reference_tags`を空欄にすると1人用として動く作りでしたが、v2は2人が写っている前提です。`reference_tags`を空欄にすると、キャラBのトリガーワードが分からないまま2人用として処理されます。
+
+### キャラ＋固定衣装のキャプション生成（`caption_training_both_1char_set_v2.txt`）
+
+1人のキャラクターが**いつも同じ衣装**を着ている学習画像用（キャラ＋衣装LoRA、Anima向け）のシステムプロンプトです。キャプションでは2つの語を使い分けます。
+
+- **トリガーワード**: キャラの体の特徴だけ（髪色・瞳の色・肌の色・獣耳や尻尾など）を表す
+- **衣装タグ**（`outfit_tag`）: 固定衣装の全アイテムをひとまとめにして表す
+
+体の特徴と固定衣装のアイテムは、それぞれトリガーワードと衣装タグに覚えさせるため、キャプションには書きません。表情・ポーズ・髪型（ポニーテール等）・胸の大きさ・衣装に含まれない小物・持ち物・衣装の状態（`open jacket`・`hat removed`など）・背景は書きます。
+
+> v1（`caption_training_both_1char_set_v1.txt`）はトリガーワード1つでキャラと衣装の両方を表すもので、`reference_tags`も単純なタグ列でした。v2は衣装を別のタグに分けたため、`reference_tags`の書き方が下記の固定フォーマットに変わっています。
+
+**入力の割り当て**
+
+| 欄 | 役割 |
+|---|---|
+| `trigger_word` | キャラのトリガーワード。従来通りタグ列の先頭に自動で入る |
+| `reference_tags` | 衣装タグと、キャプションから除くもの。以下の固定フォーマットで入力する（**必須**） |
+| `system_prompt_file` | `caption_training_both_1char_set_v2.txt` |
+
+```
+OUTFIT_BLOCK
+outfit_tag: racing outfit
+body_features: horse ears, horse tail
+outfit_items: racing jacket, white skirt, black gloves, knee boots
+```
+
+- 1行目`OUTFIT_BLOCK`は固定文字列。2〜4行目をキャラ・衣装に合わせて書き換える
+- `outfit_tag`: 衣装タグ。タグ列（`1girl, solo`の直後）と自然文にそれぞれ1回、書いたとおりの文字列で出る。除外するタグではない
+- `body_features`: キャラの体の特徴のうち、衣装に見えやすいもの（獣耳・尻尾・角・翼など）を書く。ここに書いた部位は「付け耳かどうか」を判定せずに必ず除く。ただし`tail wagging`・`ears down`のような状態・動きのタグは残る。空欄でもよい
+- `outfit_items`: 画像生成時に使った衣装のタグ（服・靴・靴下・手袋・帽子、衣装に含まれる小物）。ここに書いたアイテムは除き、**書いていないアイテムは「衣装以外の追加アイテム」として残す**。空欄のときは服・靴・靴下・手袋・帽子をまとめて固定衣装とみなして除く（髪飾り・イヤリング等の頭まわりの小物と持ち物は残る）
+- 照合は文字列の完全一致ではなく「同じ物かどうか」で行う。例えば`black sailor dress`を書けば、同じ服を指す`dress`・`sailor collar`・`serafuku`なども除かれる
+- 髪色・瞳の色・肌の色・ほくろ・体型・基本の髪型（`hime cut`・`ahoge`など）は、`reference_tags`に書かなくても常に除かれる
+- `reference_tags`はウィジェットに直接書くとバッチ内の全画像に同じ内容が使われる。同じキャラ・同じ衣装の画像だけをまとめて処理する前提
+
+**出力フォーマット**
+
+```
+hikari_mz, 1girl, solo, racing outfit, cowboy shot, standing, smile, closed eyes, ponytail, hair ribbon, open jacket, hand on own hip, holding bag, outdoors, racetrack. hikari_mz in her racing outfit stands at a racetrack with her eyes closed and a smile, her jacket open, one hand on her hip and a bag in the other, a ribbon tied in her ponytail.
+```
+
+この例では`outfit_items`にジャケット・スカート・手袋・ブーツを書いているので、それらのタグは出ていません。`hair ribbon`は`outfit_items`に無いため追加アイテムとして残っています。
+
+> 生成した画像でこのLoRAを使うときは、プロンプトにトリガーワードと衣装タグの両方を書きます（例: `hikari_mz, racing outfit`）。衣装タグを書かなければ、別の衣装を着せやすくなります。
 
 ---
 
