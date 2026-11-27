@@ -230,6 +230,75 @@ custom_wildcards = D:\GitHub_data\ComfyUI-Impact-Pack\wildcards
 - 本ノードは画像を必須入力とするため、モデルごとの対応modality情報を返すサーバー（llama-server）に接続した場合は、`model` コンボに画像入力対応モデルだけを表示します。Lemonade はこの情報を返さないため全モデルが表示されます
 - ComfyUI-Impact-Pack等のような他のカスタムノードパックへのコード依存はありません（`tags`入力にWD14 Taggerを繋ぐのはワークフロー上の運用であり、コード上の依存ではありません）
 
+### 同梱のシステムプロンプト
+
+`system_prompt_file`で選びます。出力モード（1行目の`output_mode`）によって、ノードが出す`text`の形が変わります。
+
+| ファイル | 出力モード | 用途 |
+|---|---|---|
+| `caption_tags_only.txt` | `tags_only` | WD14のタグを画像で確かめて直し、タグ列だけを出す |
+| `caption_text_only.txt` | `caption_only` | 画像を自然文（1〜3文）で説明する |
+| `caption_training_both.txt` | `both` | キャラLoRA（Anima）の学習用。タグ列＋自然文 |
+| `caption_training_costume.txt` | `both` | 衣装LoRA（Anima）の学習用。トリガーワードが衣装を表す |
+| `caption_training_krea2.txt` | `caption_only` | Krea 2向けLoRAの学習用。自然文だけ |
+| `caption_training_both_2char_v2.txt` | `both` | 2人キャラの学習用（下記「2人キャラクターのキャプション生成」） |
+| `caption_training_both_1char_set_v2.txt` | `both` | キャラ＋固定衣装の学習用（下記「キャラ＋固定衣装のキャプション生成」） |
+
+**出力モードごとの`text`の形**
+
+- `both`: `トリガーワード, タグ列. 自然文`。トリガーワードはLLMの応答に関係なく、ノードが必ずタグ列の先頭に入れる（LLMがタグ列にトリガーワードを書いていた場合は重複を取り除く）
+- `tags_only` / `caption_only`: LLMの応答がそのまま`text`になる。**ノードはトリガーワードを付けない**。自然文中の`@トリガーワード`の`@`だけは取り除く（`caption_only`のみ）
+
+#### `caption_tags_only.txt`（タグ補正のみ）
+
+WD14のタグ候補を画像と見比べ、見えないタグを消し、見落としを足し、同じ物を指す重複タグをまとめます。髪色・髪型・瞳の色、品質タグ・年代タグは出しません。
+
+- `trigger_word`は空欄でよい（入れてもタグ列には入らない）
+- 出力例: `smile, school uniform, sitting, classroom, holding book`
+
+#### `caption_text_only.txt`（自然文のみ）
+
+画像の内容（ポーズ・表情・服・小物・動作・背景）を1〜3文の英語で説明します。WD14のタグは参考にするだけで、画像と食い違えば画像を優先します。髪色・髪型・瞳の色には触れません。
+
+- `trigger_word`を入れると、それをキャラの名前として文中で使う。空欄なら`a girl`などの一般的な言い方になる
+- 出力例: `charactername sits in a classroom wearing a school uniform, smiling toward the viewer.`
+
+#### `caption_training_both.txt`（キャラLoRA・基本）
+
+キャラLoRA（Anima）の学習用です。タグ列と自然文の両方を出します。髪色・髪型・瞳の色はトリガーワードに覚えさせるため書きません。服・小物（数を画像で確かめる）・ポーズ・表情・動作・背景は書きます。
+
+- `trigger_word`: キャラのトリガーワード（必須）
+- `reference_tags`: 空欄にする
+- 出力例: `charactername, 1girl, smile, school uniform, sitting, classroom. charactername sits in a classroom wearing a school uniform, smiling toward the viewer.`
+- 構図のタグ（`cowboy shot`など）はタグ列にだけ入り、自然文には入らない
+
+#### `caption_training_costume.txt`（衣装LoRA）
+
+衣装LoRA（Anima）の学習用です。**トリガーワードはキャラではなく衣装を表します**。衣装を構成する服・小物はキャプションから除き、着ている人の髪色・瞳の色・体型などは逆に書きます（衣装LoRAでは着る人を自由に変えられるようにするため）。
+
+- `trigger_word`: 衣装のトリガーワード
+- `reference_tags`: 衣装を生成したときに使ったタグ（Illustrious系の衣装LoRAのプロンプト）をカンマ区切りで入れる。WD14のタグのうち、これと同じ物を指すタグ（色の言い方・単数複数・分け方が違っても同じ物なら）が除かれる
+- `reference_tags`に無い小物（髪のリボン・髪留めなど）は衣装の一部とみなさず、色も含めて書く
+- 画像の衣装が欠けていたり違うアイテムに置き換わっていたりしても、衣装に関するタグは書かない（そういう画像を学習に使うかどうかは別に判断する）
+- キャラ名・作品名のタグ（`name (series)`形式など）は、LLMがキャラを知っていても必ず除く。衣装が特定のキャラと結びつかないようにするため
+- 出力例: `TRIGGERWORD, smile, sitting, classroom, blonde hair, blue eyes. Wearing TRIGGERWORD, she sits in a classroom, her blonde hair falling past her shoulders as she smiles toward the viewer.`
+
+```
+reference_tags の例:
+black sailor dress, red neckerchief, white thighhighs, black loafers
+```
+
+#### `caption_training_krea2.txt`（Krea 2向け、自然文のみ）
+
+Krea 2のLoRA学習用です。Krea 2はQwen3-VLベースのテキスト理解を使うため、タグ列ではなく自然文だけを出します。文の数は決めず、画像ごとに変わる要素（ポーズ・動作・表情・服と小物・背景・光・画角）を漏れなく書くことを優先します（書かなかった要素はキャラの一部として覚えられ、プロンプトで変えにくくなるため）。
+
+- `trigger_word`: キャラのトリガーワード。文の主語として使われる
+- `reference_tags`: 空欄にする
+- 髪色・髪型・瞳の色は書かない
+- Anima向けと違い、画角（`close-up`・`from above`など）も文中に書く
+- `caption_only`なので、ノードはトリガーワードを先頭に付けない。トリガーワードはLLMが書いた文中にだけ出る
+- 出力例: `suzune stands on a rooftop at dusk in a waist-up shot, smiling with one hand raised, wearing a white blouse and a red ribbon, with warm orange light from behind.`
+
 ### 2人キャラクターのキャプション生成（`caption_training_both_2char_v2.txt`）
 
 2人のキャラクター（それぞれ別のトリガーワードを持つ）が一緒に写っている学習画像用のシステムプロンプトです。2人の**関係・やり取り**を覚えさせるデータセットを想定しています。**ノードのコード修正は不要**で、衣装LoRA用の`reference_tags`欄を2人目キャラの識別情報欄として使います。
