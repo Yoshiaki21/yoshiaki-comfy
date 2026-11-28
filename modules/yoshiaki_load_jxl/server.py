@@ -1,13 +1,17 @@
 """
 Server routes for YoshiakiLoadImageJXL (spec 3.2):
 
-  GET /yoshiaki/jxl/list                  .jxl files of the input folder
+  GET /yoshiaki/jxl/list                  .jxl/.png/.jpg/.jpeg files of the input folder
   GET /yoshiaki/jxl/preview?filename=...  512px WebP preview (decoded on the server,
-                                          so the browser does not need JPEG XL support)
+                                          so the browser does not need JPEG XL support;
+                                          used for PNG/JPEG too)
   GET /yoshiaki/jxl/info?filename=...     normalized XMP metadata (spec 4.4), without
-                                          decoding the image
+                                          decoding the image (always status "none"
+                                          for PNG/JPEG)
 
 Uploads use the standard POST /upload/image, which accepts .jxl as-is.
+
+The route names keep "jxl" for compatibility although PNG/JPEG are served too.
 """
 
 import asyncio
@@ -24,7 +28,7 @@ from PIL import Image
 from server import PromptServer
 
 from . import files
-from .load_jxl import NODE_CLASS, frame_to_arrays, open_image, read_info
+from .load_jxl import NODE_CLASS, frame_to_arrays, open_image, prepare_frame, read_info
 
 PREVIEW_MAX_SIDE = 512
 PREVIEW_QUALITY = 85
@@ -61,7 +65,7 @@ _info_cache = _LRU(_INFO_CACHE_SIZE)
 
 def _to_preview_image(img):
     """8-bit RGB (RGBA when there is alpha) built with the same conversion as the node."""
-    rgb, alpha = frame_to_arrays(img)
+    rgb, alpha = frame_to_arrays(prepare_frame(img))
     if alpha is not None:
         rgb = np.concatenate([rgb, alpha[..., None]], axis=-1)
     arr = (np.clip(rgb, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)
@@ -84,8 +88,8 @@ def _resolve_request(request):
         path = files.resolve(name)
     except files.InvalidPathError as e:
         raise web.HTTPBadRequest(text=str(e))
-    if not name.lower().endswith(files.JXL_EXT):
-        raise web.HTTPBadRequest(text=f"not a .jxl file: {name}")
+    if not files.is_supported(name):
+        raise web.HTTPBadRequest(text=f"unsupported file type: {name}")
     if not os.path.isfile(path):
         raise web.HTTPNotFound(text=f"file not found: {name}")
     return path, files.stat_key(path)
@@ -96,7 +100,7 @@ _NO_STORE = {"Cache-Control": "no-store"}
 
 @PromptServer.instance.routes.get("/yoshiaki/jxl/list")
 async def jxl_list(request):
-    file_list = await asyncio.to_thread(files.list_jxl_files)
+    file_list = await asyncio.to_thread(files.list_image_files)
     return web.json_response(file_list, headers=_NO_STORE)
 
 

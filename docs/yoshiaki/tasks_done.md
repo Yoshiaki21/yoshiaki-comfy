@@ -24,6 +24,27 @@
 
 ---
 
+## タスク: YoshiakiLoadImageJXL で PNG/JPG も読み込めるようにする
+
+- **完了日**: 2026-11-28
+- **動作確認**: ⬜未確認（torch・pillow_jxlをスタブにした単体確認のみ。実機ComfyUIでの確認はユーザー側で実施予定）
+- **新規ファイル**: なし
+- **修正ファイル**:
+  - `modules/yoshiaki_load_jxl/files.py` : `IMAGE_EXTS`・`is_supported()`・`is_jxl()`を追加、`list_jxl_files()`を`list_image_files()`に改名
+  - `modules/yoshiaki_load_jxl/load_jxl.py` : 一覧・`VALIDATE_INPUTS`をPNG/JPG対応に、`prepare_frame()`（EXIF回転・パレット透過）を追加、`read_info()`はJXL以外でXMPを読まない
+  - `modules/yoshiaki_load_jxl/server.py` : 拡張子チェック・一覧をPNG/JPG対応に、プレビューにも`prepare_frame()`を適用
+  - `js/yoshiaki-load-jxl.js` : アップロードの`accept`・拡張子チェック・ボタン名（「画像をアップロード」）、PNG/JPG選択時の概要表示
+  - `CLAUDE.md`、`docs/yoshiaki/JXL_Load_Node_指示書.md`、`README.md` : PNG/JPG対応を追記（READMEは`Yoshiaki Load Image JXL`の節と一覧表を変更後の仕様に書き換え）
+- **変更内容**:
+  - `.png`/`.jpg`/`.jpeg`を一覧に出し、画像（IMAGE/MASK）として読み込む。プロンプト等のメタデータは読まない（ユーザー要望）。テキスト・数値の出力は空文字／0
+  - 標準`LoadImage`に合わせ、EXIFの回転情報を適用し、パレット＋`transparency`のPNGは透過をMASKにした（JXLにも同じ処理が通るが無害）
+  - `class_type`・表示名・ウィジェット名・サーバールート名は変えていないので、保存済みワークフローはそのまま開ける
+- **備考**:
+  - スタブ環境で確認した内容: 一覧に`.png`/`.PNG`/`.jpg`が出て`.txt`は出ない、EXIF Orientation=6のJPG（30×10）が10×30→縦長に回転される、パレット透過PNG・RGBA PNGでMASKが作られる、PNGの`read_info`は`status: none`で警告なし
+  - JXLの読み込み・XMP処理のコードは変更していない（`is_jxl()`の分岐を足しただけ）
+
+---
+
 ## タスク: YoshiakiWildcardEncode のトリガーワード欄を1行にする
 
 - **完了日**: 2026-11-23

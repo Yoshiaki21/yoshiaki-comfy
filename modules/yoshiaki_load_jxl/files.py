@@ -1,5 +1,5 @@
 """
-The .jxl file list of the ComfyUI input folder and the path check shared by the
+The image file list (.jxl / .png / .jpg / .jpeg) of the ComfyUI input folder and the path check shared by the
 node and the server routes (spec 2.1 / 3.2).
 """
 
@@ -8,6 +8,8 @@ import os
 import folder_paths
 
 JXL_EXT = ".jxl"
+# JXL carries the XMP metadata; PNG/JPEG are loaded as images only (2026-11-28).
+IMAGE_EXTS = (JXL_EXT, ".png", ".jpg", ".jpeg")
 
 
 class InvalidPathError(ValueError):
@@ -18,15 +20,23 @@ def input_dir():
     return os.path.realpath(folder_paths.get_input_directory())
 
 
-def list_jxl_files():
-    """Relative paths ('/' separated) of every .jxl under the input folder, sorted by name."""
+def is_supported(name):
+    return isinstance(name, str) and name.lower().endswith(IMAGE_EXTS)
+
+
+def is_jxl(name):
+    return isinstance(name, str) and name.lower().endswith(JXL_EXT)
+
+
+def list_image_files():
+    """Relative paths ('/' separated) of every supported image under the input folder, sorted by name."""
     root = input_dir()
     files = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames.sort()
         rel_dir = os.path.relpath(dirpath, root)
         for name in filenames:
-            if not name.lower().endswith(JXL_EXT):
+            if not is_supported(name):
                 continue
             rel = name if rel_dir == "." else os.path.join(rel_dir, name)
             files.append(rel.replace(os.sep, "/"))

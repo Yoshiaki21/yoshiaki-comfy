@@ -184,14 +184,15 @@
 
 - **実装日**: 2026-11-03
 - **カスタムノードの機能の概要**:
-  - ComfyUIの`input`フォルダ（サブフォルダ含む、拡張子の大文字小文字無視）の`.jxl`だけを読み込む。値は`/`区切りの相対パス
+  - ComfyUIの`input`フォルダ（サブフォルダ含む、拡張子の大文字小文字無視）の`.jxl`・`.png`・`.jpg`・`.jpeg`を読み込む（2026-11-28にPNG/JPG対応、それ以前は`.jxl`のみ）。値は`/`区切りの相対パス
+  - **PNG/JPGは画像（IMAGE/MASK）だけ**: メタデータ（PNGのtEXtやJPGのEXIF等）は読まず、テキスト・数値の出力は常に空文字／0。概要欄には「PNG/JPG: メタデータ読み込み非対応（画像のみ）」と出る。標準`LoadImage`と同じく、全形式でEXIFの回転情報（`ImageOps.exif_transpose`）を適用し、パレット＋`transparency`のPNGは透過をMASKにする
   - 出力は`IMAGE`/`MASK`/`positive_text`/`negative_text`/`seed`(INT)/`steps`(INT)/`cfg`(FLOAT)/`note`/`parameters_json`（`ycomfy:Parameters`の元の文字列）。値が無ければ空文字／0でエラーにしない
   - `YoshiakiSaveImageJXL`のXMP（保存指示書第5章 v1）を`ycomfy:Parameters`優先で読み、無い・壊れている場合は`ycomfy:Seed`等の重複プロパティから読む（`status: partial`）。`version > 1`は警告付きで読める範囲だけ読む
-  - JSで「JXLをアップロード」ボタン（標準`/upload/image`へ送信）、サーバー変換のWebPプレビュー、ポジティブ／ネガティブ／概要の読み取り専用欄をノードに追加。ファイル選択時・ワークフロー読み込み時に実行前でも表示を更新する
+  - JSで「画像をアップロード」ボタン（標準`/upload/image`へ送信。2026-11-28に「JXLをアップロード」から改名、PNG/JPGも選べる）、サーバー変換のWebPプレビュー、ポジティブ／ネガティブ／概要の読み取り専用欄をノードに追加。ファイル選択時・ワークフロー読み込み時に実行前でも表示を更新する
   - サーバールート: `/yoshiaki/jxl/list`・`/yoshiaki/jxl/preview`（長辺512pxのWebP）・`/yoshiaki/jxl/info`（画像をデコードせずXMPだけ読む）
   - 詳細仕様は[docs/yoshiaki/JXL_Load_Node_指示書.md](docs/yoshiaki/JXL_Load_Node_指示書.md)
 - **備考**:
-  - `class_type`は`YoshiakiLoadImageJXL`、表示名は`Yoshiaki Load Image JXL`、`CATEGORY`は`yoshiaki-comfy/image`、`NODE_VERSION = "1.0.0"`（`modules/yoshiaki_load_jxl/load_jxl.py`）
+  - `class_type`は`YoshiakiLoadImageJXL`、表示名は`Yoshiaki Load Image JXL`（PNG/JPG対応後も保存済みワークフロー互換のため据え置き。サーバールート名`/yoshiaki/jxl/*`も同様）、`CATEGORY`は`yoshiaki-comfy/image`、`NODE_VERSION = "1.0.0"`（`modules/yoshiaki_load_jxl/load_jxl.py`）
   - 名前空間URI・`SCHEMA_ID`・`SCHEMA_VERSION`は`yoshiaki_save_jxl.metadata`からimportしている（二重定義しない）。保存ノードのコードは変更していない
   - `xmp_read.normalize()`がノード出力と`/info`ルートの共通の唯一の変換元。表示と出力を食い違わせないため、片方だけで値を加工しないこと
   - XMPはISOBMFFボックスを自前で走査して取り出す（`jxl_boxes.py`。`pillow_jxl.Decoder()`は画像全体をデコードするため使わない）。`brob`（圧縮XMP）は`brotli`がある場合のみ読む
@@ -199,7 +200,8 @@
   - アルファなしのMASKは**64×64の全0**（指示書は「画像と同じサイズ」を想定していたが、タスク0で確認した現行の標準`LoadImage`が64×64のため、標準に合わせた）
   - pillow-jxl-plugin 1.3.8は**アニメーション非対応**（`n_frames`が常に1）で、**16bitのRGB/RGBAは8bitに丸めて返す**。16bitグレースケールだけ`I;16`で来るので65535で割る
   - `filename`の検証は`files.resolve()`に集約（絶対パス・ドライブレター・`..`・realpathがinput外になるシンボリックリンクを拒否）。ルートは400、`VALIDATE_INPUTS`はエラーメッセージを返す
-  - `pillow-jxl-plugin`が無い環境ではこのノードとルートだけ登録しない（保存ノードと同じ方式）
+  - `pillow-jxl-plugin`が無い環境ではこのノードとルートだけ登録しない（保存ノードと同じ方式）。PNG/JPGだけ使う場合も同じく登録されない
+  - 対応拡張子は`files.py`の`IMAGE_EXTS`とJSの`IMAGE_EXTS`の2か所で定義している（増やすときは両方直す）。XMPを読むのは`files.is_jxl()`が真のときだけ
   - 配布予定なし、個人利用限定
 
 ---

@@ -3,6 +3,9 @@ YoshiakiLoadImageJXL: load a JPEG XL (.jxl) image from the input folder like the
 standard Load Image node, and read the regeneration parameters that
 YoshiakiSaveImageJXL wrote into its XMP (spec: docs/yoshiaki/JXL_Load_Node_指示書.md).
 
+PNG / JPEG are loaded too, as images only: their metadata is not read, so the
+text/number outputs are empty / 0 for them.
+
 The preview, upload button and metadata display live in js/yoshiaki-load-jxl.js
 and the /yoshiaki/jxl/* routes (server.py), so nothing depends on the browser
 being able to show JPEG XL.
@@ -14,7 +17,7 @@ import os
 
 import numpy as np
 import torch
-from PIL import Image, ImageSequence
+from PIL import Image, ImageOps, ImageSequence
 
 import pillow_jxl  # noqa: F401  importing registers the "JXL" format with Pillow
 
@@ -54,6 +57,15 @@ def open_image(path):
     return _pillow(Image.open, path)
 
 
+def prepare_frame(frame):
+    """Apply EXIF orientation (JPEG photos) and turn palette transparency into alpha,
+    like the standard LoadImage. Harmless for JXL."""
+    frame = ImageOps.exif_transpose(frame)
+    if frame.mode == "P" and "transparency" in frame.info:
+        frame = frame.convert("RGBA")
+    return frame
+
+
 def frame_to_arrays(frame):
     """(RGB float32 HxWx3 in 0..1, alpha float32 HxW in 0..1 or None) for one frame."""
     mode = frame.mode
@@ -86,7 +98,7 @@ def decode_image(path):
             size = frame.size
         elif frame.size != size:
             continue
-        rgb, alpha = frame_to_arrays(frame)
+        rgb, alpha = frame_to_arrays(prepare_frame(frame))
         images.append(torch.from_numpy(rgb)[None,])
         if alpha is not None:
             masks.append((1.0 - torch.from_numpy(alpha))[None,])
@@ -101,7 +113,12 @@ def decode_image(path):
 
 
 def read_info(path):
-    """(normalized info, parameters_raw). Never raises: failures become status 'none'."""
+    """(normalized info, parameters_raw). Never raises: failures become status 'none'.
+
+    Only JXL carries the XMP; other formats always give status 'none' without warnings.
+    """
+    if not files.is_jxl(path):
+        return xmp_read.normalize(None)
     try:
         xmp = jxl_boxes.read_xmp(path)
     except OSError as e:
@@ -123,8 +140,9 @@ class YoshiakiLoadImageJXL:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image": (files.list_jxl_files(), {
-                    "tooltip": "JPEG XL file in the ComfyUI input folder (subfolders included)",
+                "image": (files.list_image_files(), {
+                    "tooltip": "JPEG XL / PNG / JPEG file in the ComfyUI input folder (subfolders "
+                               "included). Metadata is read from JXL only",
                 }),
             },
         }
@@ -135,7 +153,7 @@ class YoshiakiLoadImageJXL:
     OUTPUT_TOOLTIPS = (
         "Image",
         "1 - alpha (64x64 zeros when the image has no alpha, like Load Image)",
-        "Positive prompt from the XMP (empty if none)",
+        "Positive prompt from the XMP (empty if none, always empty for PNG/JPEG)",
         "Negative prompt from the XMP (empty if none)",
         "Main seed (0 if none)",
         "sampler.steps (0 if none)",
@@ -146,8 +164,9 @@ class YoshiakiLoadImageJXL:
     FUNCTION = "load_image"
     CATEGORY = "yoshiaki-comfy/image"
     DESCRIPTION = (
-        "Loads a JPEG XL image from the input folder and outputs the prompts, seed and sampler "
-        "settings that Yoshiaki Save Image JXL wrote into its XMP."
+        "Loads a JPEG XL / PNG / JPEG image from the input folder. For JXL it also outputs the "
+        "prompts, seed and sampler settings that Yoshiaki Save Image JXL wrote into its XMP "
+        "(PNG/JPEG: image only, the other outputs are empty / 0)."
     )
 
     def load_image(self, image):
@@ -184,8 +203,8 @@ class YoshiakiLoadImageJXL:
 
     @classmethod
     def VALIDATE_INPUTS(cls, image):
-        if not isinstance(image, str) or not image.lower().endswith(files.JXL_EXT):
-            return f"Not a .jxl file: {image}"
+        if not files.is_supported(image):
+            return f"Unsupported file type (.jxl / .png / .jpg / .jpeg only): {image}"
         try:
             path = files.resolve(image)
         except files.InvalidPathError as e:

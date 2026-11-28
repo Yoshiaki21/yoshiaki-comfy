@@ -9,12 +9,25 @@ import { ComfyWidgets } from "../../scripts/widgets.js";
 // /yoshiaki/jxl/info. Both are fetched whenever the selected file changes, so the
 // node shows the prompts before it is ever executed.
 //
+// PNG / JPEG are listed and loaded too (image only, no metadata): the same
+// server preview is used, and /info returns status "none" for them.
+//
 // Every widget added here is serialize=false: it is neither saved in the
 // workflow's widgets_values nor sent in the prompt, so saved workflows never get
 // their `image` value shifted.
 
 const NODE_CLASS = "YoshiakiLoadImageJXL";
 const STATE = Symbol("yoshiaki-load-jxl");
+const IMAGE_EXTS = [".jxl", ".png", ".jpg", ".jpeg"];
+
+function isJxl(name) {
+	return typeof name === "string" && name.toLowerCase().endsWith(".jxl");
+}
+
+function isSupported(name) {
+	const lower = String(name || "").toLowerCase();
+	return IMAGE_EXTS.some((ext) => lower.endsWith(ext));
+}
 
 function markNotSerialized(widget) {
 	widget.serialize = false;
@@ -63,7 +76,10 @@ function fmtModel(model) {
 	return has(s) ? `${model.name} (lora ${fmtFloat(s)})` : `${model.name} (lora)`;
 }
 
-function buildSummary(info) {
+function buildSummary(info, filename) {
+	if (filename && !isJxl(filename) && (!info || info.status === "none")) {
+		return "PNG/JPG: メタデータ読み込み非対応（画像のみ）";
+	}
 	if (!info || info.status === "none") {
 		const lines = ["XMPメタデータなし"];
 		for (const w of info?.warnings || []) lines.push(`⚠ ${w}`);
@@ -134,7 +150,7 @@ function renderInfo(node, info) {
 	if (!st) return;
 	st.positive.value = info?.positive || "";
 	st.negative.value = info?.negative || "";
-	st.summary.value = buildSummary(info);
+	st.summary.value = buildSummary(info, st.imageWidget?.value);
 	app.graph?.setDirtyCanvas(true, true);
 }
 
@@ -189,8 +205,8 @@ async function refreshFileList(node) {
 
 async function uploadFile(node, file) {
 	const st = node[STATE];
-	if (!file.name.toLowerCase().endsWith(".jxl")) {
-		alert("JXLファイル（.jxl）を選択してください");
+	if (!isSupported(file.name)) {
+		alert("JXL / PNG / JPG ファイルを選択してください");
 		return;
 	}
 	const body = new FormData();
@@ -205,7 +221,7 @@ async function uploadFile(node, file) {
 		st.imageWidget.value = name;
 		st.imageWidget.callback?.(name);
 	} catch (e) {
-		alert(`JXLのアップロードに失敗しました: ${e}`);
+		alert(`画像のアップロードに失敗しました: ${e}`);
 	}
 }
 
@@ -216,7 +232,7 @@ function setupNode(node) {
 	// upload button (spec 3.3) -- standard image_upload is not used because its
 	// preview relies on the browser displaying the original file.
 	const fileInput = document.createElement("input");
-	Object.assign(fileInput, { type: "file", accept: ".jxl", style: "display: none" });
+	Object.assign(fileInput, { type: "file", accept: IMAGE_EXTS.join(","), style: "display: none" });
 	fileInput.addEventListener("change", () => {
 		const file = fileInput.files?.[0];
 		fileInput.value = "";
@@ -224,7 +240,7 @@ function setupNode(node) {
 	});
 	document.body.append(fileInput);
 	const uploadWidget = node.addWidget("button", "upload_jxl", null, () => fileInput.click(), { serialize: false });
-	uploadWidget.label = "JXLをアップロード";
+	uploadWidget.label = "画像をアップロード";
 	markNotSerialized(uploadWidget);
 
 	// preview

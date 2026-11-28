@@ -299,5 +299,14 @@ schema: v1
 - JXLからのワークフロー復元（保存ノードはワークフローを書き込まない）
 - XMPの編集・書き戻し
 - outputフォルダから直接読み込む機能（必要になったら別途検討。当面はinputフォルダへコピーまたはアップロードして使う）
-- PNG等、JXL以外の形式
+- PNG等、JXL以外の形式（→ 2026-11-28にPNG/JPGの画像読み込みのみ対応。第10章）
 - `YoshiakiLoRACaptionLoad` のJXL対応（別タスク）
+
+---
+
+## 10. 追記（2026-11-28）: PNG/JPG の読み込み
+
+- 対象拡張子を `.jxl` `.png` `.jpg` `.jpeg` に広げた（大文字小文字無視）。`.webp` 等は対象外
+- PNG/JPG は **画像（IMAGE/MASK）だけ** を出力する。メタデータは読まず、`positive_text`〜`parameters_json` は空文字／0。`/yoshiaki/jxl/info` は `status: "none"`（警告なし）を返し、JS の概要欄は「PNG/JPG: メタデータ読み込み非対応（画像のみ）」と表示する
+- 全形式で標準 `LoadImage` と同じく EXIF の回転情報を適用し、パレット＋`transparency` の PNG は透過を MASK にする（プレビューも同じ処理）
+- `class_type`・表示名・ウィジェット名・ルート名は変更しない（保存済みワークフロー互換）
